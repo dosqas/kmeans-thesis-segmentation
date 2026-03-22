@@ -1,14 +1,11 @@
 #include <cuda_runtime.h>
 #include <device_launch_parameters.h>
-#include "backend/CudaAssignmentContext.hpp"
+#include "backend/cuda_assignment_context.hpp"
 #include <opencv2/core.hpp>
 #include "common/constants.hpp"
 #include <vector>
 
 namespace kmeans {
-    int CudaAssignmentContext::getWidth() { return this.m_width; }
-    int  CudaAssignmentContext::getK() { return this.m_k; }
-
     CudaAssignmentContext::CudaAssignmentContext(int width, int height, int k) 
         : m_width(width), m_height(height), m_k(k) 
     {

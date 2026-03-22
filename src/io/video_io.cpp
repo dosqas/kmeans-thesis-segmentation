@@ -1,9 +1,9 @@
-#include "video_io.hpp"
+#include "io/video_io.hpp"
 #include <opencv2/opencv.hpp>
-#include "utils.hpp"
+#include "common/utils.hpp"
 #include "common/enums.hpp"
 #include "common/constants.hpp"
-#include "clustering/ClusteringManager.hpp"
+#include "clustering/clustering_manager.hpp"
 #include <cuda_runtime.h>
 #include <iostream>
 #include <string>
@@ -65,7 +65,7 @@ namespace kmeans {
         Algorithm lastAlgo = algo;
         int last_k_trackbar = k_trackbar;
 
-        ClusteringManager manager;
+        clustering::ClusteringManager manager;
         SegmentationConfig& config = manager.getConfig();
 
         while (true) {
@@ -126,25 +126,6 @@ namespace kmeans {
                 if (p.second < minFps) minFps = p.second;
                 if (p.second > maxFps) maxFps = p.second;
             }
-
-            std::string algoName =
-                (algo == Algorithm::KMEANS_REGULAR ? "KMEANS" : algo == Algorithm::KMEANS_QUANTUM ? "QUANTUM" : "UNKNOWN");
-
-            std::string overlay = "k=" + std::to_string(k) +
-                "  backend=" + algoName +
-                "  FPS=" + cv::format("%.1f", fps) +
-                "  min=" + cv::format("%.1f", minFps) +
-                "  max=" + cv::format("%.1f", maxFps);
-
-            cv::putText(combined, overlay, cv::Point(12, 28),
-                cv::FONT_HERSHEY_SIMPLEX, 0.7, cv::Scalar(0, 0, 0), 3, cv::LINE_AA);
-            cv::putText(combined, overlay, cv::Point(12, 28),
-                cv::FONT_HERSHEY_SIMPLEX, 0.7, cv::Scalar(255, 255, 255), 1, cv::LINE_AA);
-
-            cv::putText(combined, "Original", cv::Point(12, frame.rows - 12),
-                cv::FONT_HERSHEY_SIMPLEX, 0.6, cv::Scalar(255, 255, 255), 1, cv::LINE_AA);
-            cv::putText(combined, "Segmented", cv::Point(frame.cols + 12, frame.rows - 12),
-                cv::FONT_HERSHEY_SIMPLEX, 0.6, cv::Scalar(255, 255, 255), 1, cv::LINE_AA);
 
             cv::imshow(windowName, combined);
 

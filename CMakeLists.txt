@@ -7,6 +7,8 @@ find_package(CUDA REQUIRED)
 
 enable_language(CUDA)
 
+set(CMAKE_CXX_CLANG_TIDY "clang-tidy;--checks=clang-analyzer-*,cppcoreguidelines-*,modernize-*,readability-*")
+
 # Include directories
 include_directories(
     ${OpenCV_INCLUDE_DIRS}
@@ -17,13 +19,16 @@ include_directories(
 # Core Logic Library
 add_library(kmeans_core
     src/backend/cuda_kernels.cu
-    src/clustering/ClusteringManager.cpp
-    src/clustering/KMeansClassical.cpp
-    src/clustering/KMeansQuantum.cpp
-    src/coreset.cpp
-    src/rcc.cpp
-    src/utils.cpp
-    src/video_io.cpp
+    src/clustering/classical_engine.cpp
+    src/clustering/clustering_manager.cpp
+    src/clustering/flat_data_preprocessor.cpp
+    src/clustering/rcc_data_preprocessor.cpp
+    src/clustering/random_initializer.cpp
+    src/clustering/kmeans_plus_plus_initializer.cpp
+    src/core/coreset.cpp
+    src/core/rcc.cpp
+    src/common/utils.cpp
+    src/io/video_io.cpp
 )
 
 set_source_files_properties(src/backend/cuda_kernels.cu PROPERTIES LANGUAGE CUDA)
