@@ -19,13 +19,13 @@ include_directories(
 # Core Logic Library
 add_library(kmeans_core
     src/backend/cuda_kernels.cu
-    src/clustering/classical_engine.cpp
+    src/clustering/engines/classical_engine.cpp
     src/clustering/clustering_manager.cpp
     src/clustering/clustering_factory.cpp
-    src/clustering/full_data_preprocessor.cpp
-    src/clustering/rcc_data_preprocessor.cpp
-    src/clustering/random_initializer.cpp
-    src/clustering/kmeans_plus_plus_initializer.cpp
+    src/clustering/preprocessors/full_data_preprocessor.cpp
+    src/clustering/preprocessors/rcc_data_preprocessor.cpp
+    src/clustering/initializers/random_initializer.cpp
+    src/clustering/initializers/kmeans_plus_plus_initializer.cpp
     src/core/coreset.cpp
     src/core/rcc.cpp
     src/common/utils.cpp

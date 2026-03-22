@@ -1,5 +1,5 @@
 #pragma once
-#include "clustering/data_preprocessor.hpp"
+#include "clustering/preprocessors/data_preprocessor.hpp"
 #include "core/rcc.hpp"
 
 namespace kmeans {

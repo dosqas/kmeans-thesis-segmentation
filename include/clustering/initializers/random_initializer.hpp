@@ -1,5 +1,5 @@
 #pragma once
-#include "clustering/initializer.hpp"
+#include "clustering/initializers/initializer.hpp"
 #include <random>
 
 namespace kmeans {

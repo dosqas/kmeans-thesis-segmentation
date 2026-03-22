@@ -1,4 +1,4 @@
-#include "clustering/rcc_data_preprocessor.hpp"
+#include "clustering/preprocessors/rcc_data_preprocessor.hpp"
 #include "common/constants.hpp"
 
 namespace kmeans {

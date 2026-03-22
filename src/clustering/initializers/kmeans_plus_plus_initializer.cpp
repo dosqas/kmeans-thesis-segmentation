@@ -1,4 +1,4 @@
-#include "clustering/kmeans_plus_plus_initializer.hpp"
+#include "clustering/initializers/kmeans_plus_plus_initializer.hpp"
 #include <algorithm>
 
 namespace kmeans {

@@ -1,9 +1,9 @@
 #pragma once
 #include <memory>
 #include "common/config.hpp"
-#include "clustering/data_preprocessor.hpp"
-#include "clustering/initializer.hpp"
-#include "clustering/kmeans_engine.hpp"
+#include "clustering/preprocessors/data_preprocessor.hpp"
+#include "clustering/initializers/initializer.hpp"
+#include "clustering/engines/kmeans_engine.hpp"
 
 namespace kmeans {
 namespace clustering {

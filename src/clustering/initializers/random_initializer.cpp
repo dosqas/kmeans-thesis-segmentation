@@ -1,4 +1,4 @@
-#include "clustering/random_initializer.hpp"
+#include "clustering/initializers/random_initializer.hpp"
 
 namespace kmeans {
 namespace clustering {

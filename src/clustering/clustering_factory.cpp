@@ -1,11 +1,11 @@
 #include "clustering/clustering_factory.hpp"
 #include "common/enums.hpp"
 
-#include "clustering/full_data_preprocessor.hpp"
-#include "clustering/rcc_data_preprocessor.hpp"
-#include "clustering/random_initializer.hpp"
-#include "clustering/kmeans_plus_plus_initializer.hpp"
-#include "clustering/classical_engine.hpp"
+#include "clustering/preprocessors/full_data_preprocessor.hpp"
+#include "clustering/preprocessors/rcc_data_preprocessor.hpp"
+#include "clustering/initializers/random_initializer.hpp"
+#include "clustering/initializers/kmeans_plus_plus_initializer.hpp"
+#include "clustering/engines/classical_engine.hpp"
 
 #include <opencv2/core.hpp>
 

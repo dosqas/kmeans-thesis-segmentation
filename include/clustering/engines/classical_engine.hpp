@@ -1,5 +1,5 @@
 #pragma once
-#include "clustering/kmeans_engine.hpp"
+#include "clustering/engines/kmeans_engine.hpp"
 #include "common/constants.hpp"
 #include <opencv2/core.hpp>
 #include <vector>
@@ -17,4 +17,4 @@ namespace kmeans {
             int k) override;
     };
 
-} // namespace kmeans
+}
