@@ -6,6 +6,7 @@
 #include "clustering/initializers/random_initializer.hpp"
 #include "clustering/initializers/kmeans_plus_plus_initializer.hpp"
 #include "clustering/engines/classical_engine.hpp"
+#include "clustering/engines/quantum_engine.hpp"
 
 #include <opencv2/core.hpp>
 
@@ -33,8 +34,9 @@ namespace clustering {
     }
 
     std::unique_ptr<KMeansEngine> ClusteringFactory::createEngine(const SegmentationConfig& config) {
-        // Extension point for Quantum engine
-        // if (config.algorithm == AlgorithmType::QUANTUM) return std::make_unique<QuantumEngine>();
+        if (config.algorithm == AlgorithmType::KMEANS_QUANTUM) {
+            return std::make_unique<QuantumEngine>();
+        }
         return std::make_unique<ClassicalEngine>();
     }
 

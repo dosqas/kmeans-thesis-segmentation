@@ -20,7 +20,6 @@ namespace kmeans {
                 float minDistSq = std::numeric_limits<float>::max();
                 int bestK = 0;
 
-                // FIX: Get pointer to the start of the row and map it to a Vec5f
                 const float* rowPtr = samples.ptr<float>(i);
                 cv::Vec<float, 5> point(rowPtr[0], rowPtr[1], rowPtr[2], rowPtr[3], rowPtr[4]);
 
@@ -78,4 +77,4 @@ namespace kmeans {
         return centers;
     }
 
-} // namespace kmeans
+}

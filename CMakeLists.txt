@@ -4,6 +4,7 @@ project(KMeansThesisSegmentation LANGUAGES CXX CUDA)
 # Dependencies
 find_package(OpenCV REQUIRED)
 find_package(CUDA REQUIRED)
+find_package(cppzmq CONFIG REQUIRED)
 find_package(glfw3 REQUIRED)
 
 enable_language(CUDA)
@@ -21,6 +22,7 @@ include_directories(
 add_library(kmeans_core
     src/backend/cuda_kernels.cu
     src/clustering/engines/classical_engine.cpp
+    src/clustering/engines/quantum_engine.cpp
     src/clustering/clustering_manager.cpp
     src/clustering/clustering_factory.cpp
     src/clustering/preprocessors/full_data_preprocessor.cpp
@@ -41,7 +43,7 @@ set_target_properties(kmeans_core PROPERTIES
     CUDA_ARCHITECTURES "native"         # Specify target architecture (native for the current machine)
 )
 
-target_link_libraries(kmeans_core PUBLIC ${OpenCV_LIBS} glfw)
+target_link_libraries(kmeans_core PUBLIC ${OpenCV_LIBS} glfw cppzmq)
 
 # ImGui Library
 add_library(imgui STATIC
@@ -68,17 +70,3 @@ add_executable(kmeans_thesis_segmentation src/main.cpp)
 set_target_properties(kmeans_thesis_segmentation PROPERTIES CUDA_ARCHITECTURES "native")
 
 target_link_libraries(kmeans_thesis_segmentation PRIVATE kmeans_core imgui)
-
-# 1. Include Paths
-target_include_directories(kmeans_thesis_segmentation PRIVATE 
-    "D:/QuantumProject/qiskit/crates/cext/include"
-    "D:/QuantumProject/qiskit-ibm-runtime-c/include"
-)
-
-# 2. Link the two "Engines"
-target_link_libraries(kmeans_thesis_segmentation PRIVATE 
-    # The Core SDK
-    "D:/QuantumProject/qiskit/target/x86_64-pc-windows-msvc/release/qiskit_cext.lib"
-    # The IBM Runtime
-    "D:/QuantumProject/qiskit-ibm-runtime-c/target/x86_64-pc-windows-msvc/release/qiskit_ibm_runtime.dll.lib"
-)
