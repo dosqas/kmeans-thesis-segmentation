@@ -4,6 +4,7 @@
 #include <opencv2/core.hpp>
 #include "common/constants.hpp"
 #include <vector>
+#include <cstring>
 
 namespace kmeans {
     CudaAssignmentContext::CudaAssignmentContext(int width, int height, int k) 
@@ -12,10 +13,15 @@ namespace kmeans {
         m_imgSize = width * height * 3 * sizeof(unsigned char);
         m_centersSize = k * 5 * sizeof(float);
 
-        // Persistent memory allocation
+        // Persistent device memory allocation
         cudaMalloc(&d_input, m_imgSize);
         cudaMalloc(&d_output, m_imgSize);
         cudaMalloc(&d_centers, m_centersSize);
+
+        // Persistent pinned host memory allocation for zero-copy staging
+        cudaMallocHost(&h_input_pinned, m_imgSize);
+        cudaMallocHost(&h_output_pinned, m_imgSize);
+        cudaMallocHost(&h_centers_pinned, m_centersSize);
 
         // Initialize the stream for async operations
         cudaStreamCreate(&m_stream);
@@ -25,6 +31,11 @@ namespace kmeans {
         if (d_input) cudaFree(d_input);
         if (d_output) cudaFree(d_output);
         if (d_centers) cudaFree(d_centers);
+        
+        if (h_input_pinned) cudaFreeHost(h_input_pinned);
+        if (h_output_pinned) cudaFreeHost(h_output_pinned);
+        if (h_centers_pinned) cudaFreeHost(h_centers_pinned);
+        
         if (m_stream) cudaStreamDestroy(m_stream);
     }
 
@@ -82,16 +93,19 @@ namespace kmeans {
                                     const std::vector<cv::Vec<float, 5>>& centers, 
                                     cv::Mat& output) 
     {
-        cudaMemcpyAsync(d_input, frame.data, m_imgSize, cudaMemcpyHostToDevice, m_stream);
+        // 1. Quick CPU copy to pinned memory to bypass driver staging overhead
+        std::memcpy(h_input_pinned, frame.data, m_imgSize);
+        cudaMemcpyAsync(d_input, h_input_pinned, m_imgSize, cudaMemcpyHostToDevice, m_stream);
         
-        // Flatten centers to a local vector
-        std::vector<float> flatCenters;
-        flatCenters.reserve(m_k * 5);
+        // Flatten centers directly into pinned host buffer
+        int k_idx = 0;
         for(const auto& c : centers) {
-            for(int i = 0; i < 5; ++i) flatCenters.push_back(c[i]);
+            for(int i = 0; i < 5; ++i) {
+                h_centers_pinned[k_idx++] = c[i];
+            }
         }
         
-        cudaMemcpyAsync(d_centers, flatCenters.data(), m_centersSize, cudaMemcpyHostToDevice, m_stream);
+        cudaMemcpyAsync(d_centers, h_centers_pinned, m_centersSize, cudaMemcpyHostToDevice, m_stream);
 
         // 2. Launch Kernel on Stream
         int threadsPerBlock = 256;
@@ -101,10 +115,13 @@ namespace kmeans {
             d_input, d_output, m_width, m_height, d_centers, m_k, COLOR_SCALE, SPATIAL_SCALE
         );
 
-        // 3. Async Download
-        cudaMemcpyAsync(output.data, d_output, m_imgSize, cudaMemcpyDeviceToHost, m_stream);
+        // 3. Async Download to pinned memory
+        cudaMemcpyAsync(h_output_pinned, d_output, m_imgSize, cudaMemcpyDeviceToHost, m_stream);
 
-        // 4. Synchronize the stream so 'output' is ready for OpenCV display
+        // 4. Synchronize the stream to wait for transfers to finish
         cudaStreamSynchronize(m_stream);
+        
+        // 5. Unpack result
+        std::memcpy(output.data, h_output_pinned, m_imgSize);
     }
 }

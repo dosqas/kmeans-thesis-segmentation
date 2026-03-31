@@ -19,7 +19,6 @@ namespace kmeans {
 	// The RCC (Recursive Cached Coreset Tree) structure for managing and merging coresets
 	class RCC {
 	private:
-		RCCNode* root = nullptr;
 		std::vector<RCCNode*> levels; // Each index represents a level in the tree; nullptr if empty
 		int max_levels = 8; // Maximum number of levels in the tree. Helps to keep its height bounded
 
@@ -57,5 +56,8 @@ namespace kmeans {
 		// Returns:
 		//   The root Coreset, or an empty Coreset if the tree is empty.
 		Coreset getRootCoreset() const;
+
+		// Clear memory and reset the tree state
+		void clear();
 	};
 }

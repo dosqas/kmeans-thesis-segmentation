@@ -39,21 +39,14 @@ namespace kmeans {
         if (carry) {
             // bounded cap: merge into top level and replace
             if (levels.back()) {
-                carry = mergeNodes(levels.back(), carry); // Merge with existing top level
-                deleteSubtree(levels.back()); // Delete the old top level subtree to avoid memory leak
+                RCCNode* old_top = levels.back();
+                Coreset merged = mergeCoresets(old_top->coreset, carry->coreset); // Merge with existing top level
+                deleteSubtree(old_top); // Delete the old top level subtree
+                deleteSubtree(carry);   // Delete the carry subtree
+                carry = new RCCNode(merged); // Create a flattened replacement
             }
             levels.back() = carry;
         }
-
-        // Recompute root as merge of all non-null levels (low to high)
-        RCCNode* newRoot = nullptr;
-        for (int lvl = 0; lvl < (int)levels.size(); ++lvl) {
-            if (!levels[lvl]) continue;
-
-            // Merge into new root if not null, else set as root
-            newRoot = newRoot ? mergeNodes(newRoot, levels[lvl]) : levels[lvl];
-        }
-        root = newRoot;
     }
 
     // Merge two RCC nodes A and B into one by merging their coresets and creating a new parent node
@@ -74,26 +67,33 @@ namespace kmeans {
     // Get the coreset at the root of the RCC tree
     Coreset RCC::getRootCoreset() const
     {
-        if (!root) return Coreset{}; // Return empty coreset if tree is empty
+        Coreset final_coreset;
+        bool empty = true;
+        for (auto node : levels) {
+            if (node) {
+                if (empty) {
+                    final_coreset = node->coreset;
+                    empty = false;
+                } else {
+                    final_coreset = mergeCoresets(final_coreset, node->coreset);
+                }
+            }
+        }
+        return final_coreset;
+    }
 
-        return root->coreset;
+    void RCC::clear()
+    {
+        for (RCCNode* node : levels) {
+            if (node) {
+                deleteSubtree(node);
+            }
+        }
+        levels.assign(std::max(1, max_levels), nullptr);
     }
 
     RCC::~RCC()
     {
-        // Delete unique subtrees from the level array to avoid double-free errors.
-        // Track deletions by marking pointers we already removed
-        std::unordered_set<RCCNode*> seen;
-        for (RCCNode* node : levels) {
-            if (node && !seen.count(node)) {
-                deleteSubtree(node);
-                seen.insert(node);
-            }
-        }
-
-        // In case levels wasn't used, ensure root is deleted.
-        if (!levels.size() && root) {
-            deleteSubtree(root);
-        }
+        clear();
     }
 }

@@ -10,6 +10,7 @@
 // Backend configurations
 #include "common/enums.hpp"
 #include "common/config.hpp"
+#include "common/constants.hpp"
 
 // Windows <GL/gl.h> strictly supports OpenGL 1.1. 
 // GL_CLAMP_TO_EDGE (0x812F) was introduced in OpenGL 1.2, so we manually define the constant
@@ -43,8 +44,11 @@ namespace io {
         // GL 3.0 + GLSL 130
         glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
         glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);
+        
+        // Disable window resizing and maximizing
+        glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
 
-        m_window = glfwCreateWindow(1280, 720, "K-Means Segmentation Thesis - ImGui Dashboard", NULL, NULL);
+        m_window = glfwCreateWindow(1400, 438, "K-Means Segmentation Thesis - ImGui Dashboard", NULL, NULL);
         if (m_window == NULL) {
             std::cerr << "Failed to create window using GLFW." << std::endl;
             glfwTerminate();
@@ -164,6 +168,9 @@ namespace io {
         ImGui::Separator();
         ImGui::Text("Visualization Overlays");
         ImGui::Checkbox("Show Spatial Centroids", &m_showCentroids);
+        if (ImGui::Button("Reset Centroids (Flush Memory)")) {
+            m_forceReset = true;
+        }
         
         ImGui::Separator();
         
@@ -232,15 +239,19 @@ namespace io {
             m_originalTexture = matToTexture(localOriginal, m_originalTexture);
             m_segmentedTexture = matToTexture(localSegmented, m_segmentedTexture);
 
+            ImGui::BeginGroup();
             ImGui::Text("Original Frame");
-            ImVec2 imgSize(localOriginal.cols * 0.5f, localOriginal.rows * 0.5f);
+            ImVec2 imgSize(localOriginal.cols * 0.8f, localOriginal.rows * 0.8f);
             ImGui::Image((void*)(intptr_t)m_originalTexture, imgSize);
+            ImGui::EndGroup();
             
             ImGui::SameLine();
 
+            ImGui::BeginGroup();
             ImGui::Text("Clustered Frame");
-            ImVec2 segSize(localSegmented.cols * 0.5f, localSegmented.rows * 0.5f);
+            ImVec2 segSize(localSegmented.cols * 0.8f, localSegmented.rows * 0.8f);
             ImGui::Image((void*)(intptr_t)m_segmentedTexture, segSize);
+            ImGui::EndGroup();
         } else {
             ImGui::Text("Warming up camera thread...");
         }
@@ -279,6 +290,11 @@ namespace io {
                 }
                 m_manager.getConfig() = currentConfig;
 
+                if (m_forceReset) {
+                    m_manager.resetCenters();
+                    m_forceReset = false;
+                }
+
                 cv::Mat smallFrame;
                 cv::resize(frame, smallFrame, cv::Size(200, 150)); 
                 
@@ -300,13 +316,12 @@ namespace io {
                 cv::resize(segmented, displaySegmented, frame.size(), 0, 0, cv::INTER_NEAREST);
 
                 if (m_showCentroids) {
-                    float scaleX = (float)frame.cols / smallFrame.cols;
-                    float scaleY = (float)frame.rows / smallFrame.rows;
                     for (const auto& c : centers) {
-                        cv::Point centerPt(static_cast<int>(c[3] * scaleX), static_cast<int>(c[4] * scaleY));
-                        cv::Scalar color(c[0], c[1], c[2]);
-                        cv::circle(displaySegmented, centerPt, 12, color, -1);
-                        cv::circle(displaySegmented, centerPt, 14, cv::Scalar(255, 255, 255), 2);
+                        cv::Point centerPt(static_cast<int>((c[3] / kmeans::SPATIAL_SCALE) * frame.cols), 
+                                           static_cast<int>((c[4] / kmeans::SPATIAL_SCALE) * frame.rows));
+                        cv::Scalar color(c[0] / kmeans::COLOR_SCALE, c[1] / kmeans::COLOR_SCALE, c[2] / kmeans::COLOR_SCALE);
+                        cv::circle(displaySegmented, centerPt, 6, color, -1);
+                        cv::circle(displaySegmented, centerPt, 8, cv::Scalar(255, 255, 255), 2);
                     }
                 }
 

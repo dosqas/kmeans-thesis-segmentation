@@ -12,8 +12,14 @@ namespace clustering {
         std::mt19937 gen(std::random_device{}());
         std::uniform_int_distribution<> dis(0, samples.rows - 1);
 
+        // Helper to safely read a row into a Vec5f
+        auto readPoint = [&](int row) {
+            const float* ptr = samples.ptr<float>(row);
+            return cv::Vec<float, 5>(ptr[0], ptr[1], ptr[2], ptr[3], ptr[4]);
+        };
+
         // 1. Pick the first center completely at random
-        centers.push_back(samples.at<cv::Vec<float, 5>>(dis(gen)));
+        centers.push_back(readPoint(dis(gen)));
 
         // 2. Pick the remaining k-1 centers
         for (int i = 1; i < k; ++i) {
@@ -23,7 +29,7 @@ namespace clustering {
             // For each point, find the distance to the NEAREST existing center
             for (int p = 0; p < samples.rows; ++p) {
                 float minD2 = 1e20f;
-                cv::Vec<float, 5> point = samples.at<cv::Vec<float, 5>>(p);
+                cv::Vec<float, 5> point = readPoint(p);
 
                 for (const auto& c : centers) {
                     float d2 = cv::norm(point - c, cv::NORM_L2SQR);
@@ -41,7 +47,7 @@ namespace clustering {
             for (int p = 0; p < samples.rows; ++p) {
                 currentSum += distancesSq[p];
                 if (currentSum >= threshold) {
-                    centers.push_back(samples.at<cv::Vec<float, 5>>(p));
+                    centers.push_back(readPoint(p));
                     break;
                 }
             }

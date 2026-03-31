@@ -16,6 +16,7 @@ namespace clustering {
         ~RccDataPreprocessor() override = default;
 
         cv::Mat prepare(const cv::Mat& frame) override;
+        void reset() override { m_rcc.clear(); }
     };
 
 }

@@ -43,6 +43,7 @@ namespace io {
         // State initialized flags
         bool m_initialized = false;
         bool m_showCentroids = false;
+        std::atomic<bool> m_forceReset{false};
 
         void initWindow();
         void initImGui();

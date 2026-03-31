@@ -14,6 +14,10 @@ class CudaAssignmentContext {
   unsigned char* d_output = nullptr;
   float* d_centers = nullptr;
 
+  unsigned char* h_input_pinned = nullptr;
+  unsigned char* h_output_pinned = nullptr;
+  float* h_centers_pinned = nullptr;
+
   size_t m_imgSize;
   size_t m_centersSize;
 

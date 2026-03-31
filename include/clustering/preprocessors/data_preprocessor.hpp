@@ -9,6 +9,7 @@ namespace clustering {
         virtual ~DataPreprocessor() = default;
 
         virtual cv::Mat prepare(const cv::Mat& frame) = 0;
+        virtual void reset() {} // Clear accumulated memory caches
     };
 
 }

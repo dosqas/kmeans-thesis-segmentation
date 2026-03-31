@@ -68,3 +68,17 @@ add_executable(kmeans_thesis_segmentation src/main.cpp)
 set_target_properties(kmeans_thesis_segmentation PROPERTIES CUDA_ARCHITECTURES "native")
 
 target_link_libraries(kmeans_thesis_segmentation PRIVATE kmeans_core imgui)
+
+# 1. Include Paths
+target_include_directories(kmeans_thesis_segmentation PRIVATE 
+    "D:/QuantumProject/qiskit/crates/cext/include"
+    "D:/QuantumProject/qiskit-ibm-runtime-c/include"
+)
+
+# 2. Link the two "Engines"
+target_link_libraries(kmeans_thesis_segmentation PRIVATE 
+    # The Core SDK
+    "D:/QuantumProject/qiskit/target/x86_64-pc-windows-msvc/release/qiskit_cext.lib"
+    # The IBM Runtime
+    "D:/QuantumProject/qiskit-ibm-runtime-c/target/x86_64-pc-windows-msvc/release/qiskit_ibm_runtime.dll.lib"
+)

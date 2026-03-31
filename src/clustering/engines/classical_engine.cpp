@@ -63,6 +63,14 @@ namespace kmeans {
             for (int j = 0; j < k; ++j) {
                 if (counts[j] > 0) {
                     centers[j] = newSums[j] / (float)counts[j];
+                } else {
+                    // Empty cluster detected!
+                    // This happens when sudden color changes leave a center too far from any new data points.
+                    // We reinitialize it to a random data point to pull it back into the active color space.
+                    int randIdx = std::rand() % numPoints;
+                    const float* randPtr = samples.ptr<float>(randIdx);
+                    centers[j] = cv::Vec<float, 5>(randPtr[0], randPtr[1], randPtr[2], randPtr[3], randPtr[4]);
+                    changed = true; // Force another iteration to integrate the resurrected cluster
                 }
             }
         }

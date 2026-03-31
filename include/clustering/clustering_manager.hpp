@@ -37,6 +37,13 @@ namespace clustering {
         // Factory setup function to inject strategies based on config
         void updateStategyImplementations();
 
+        void resetCenters() { 
+            m_hasPrevious = false; 
+            if (m_dataPreprocessor) {
+                m_dataPreprocessor->reset();
+            }
+        }
+
         cv::Mat segmentFrame(const cv::Mat& frame);
         std::vector<cv::Vec<float, 5>> computeCenters(const cv::Mat& frame);
     };
