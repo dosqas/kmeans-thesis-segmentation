@@ -8,9 +8,9 @@ namespace kmeans {
             m_context = std::make_unique<zmq::context_t>(1);
             m_socket = std::make_unique<zmq::socket_t>(*m_context, zmq::socket_type::req);
             
-            // Short timeouts so UI doesn't freeze forever if Python is not running
-            m_socket->set(zmq::sockopt::rcvtimeo, 500); 
-            m_socket->set(zmq::sockopt::sndtimeo, 500);
+            // Long timeouts so Python Quantum Simulator has ample time to boot and process batches
+            m_socket->set(zmq::sockopt::rcvtimeo, 10000); 
+            m_socket->set(zmq::sockopt::sndtimeo, 10000);
             
             // Connect to the local Python Qiskit ZeroMQ Server
             m_socket->connect("tcp://127.0.0.1:5555");
@@ -83,7 +83,19 @@ namespace kmeans {
                 memcpy(newCenters.data(), reply.data(), bytesCenters);
                 return newCenters;
             }
+        } catch (const zmq::error_t& e) {
+            std::cerr << "ZMQ Exception during transport: " << e.what() << " - Reconnecting..." << std::endl;
+            m_socket = std::make_unique<zmq::socket_t>(*m_context, zmq::socket_type::req);
+            m_socket->set(zmq::sockopt::rcvtimeo, 10000); 
+            m_socket->set(zmq::sockopt::sndtimeo, 10000);
+            m_socket->set(zmq::sockopt::linger, 0);
+            m_socket->connect("tcp://127.0.0.1:5555");
+            return initialCenters;
+        } catch (const std::exception& e) {
+            std::cerr << "Standard Exception during transport: " << e.what() << std::endl;
+            return initialCenters;
         } catch (...) {
+            std::cerr << "Unknown exception during transport" << std::endl;
             return initialCenters;
         }
 

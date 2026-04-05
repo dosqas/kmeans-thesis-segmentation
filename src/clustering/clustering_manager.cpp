@@ -19,7 +19,7 @@ namespace clustering {
         if (!m_initializer || m_config.init != m_prevConfig.init) {
             m_initializer = ClusteringFactory::createInitializer(m_config);
         }
-        if (!m_clusteringEngine) {
+        if (!m_clusteringEngine || m_config.algorithm != m_prevConfig.algorithm) {
             m_clusteringEngine = ClusteringFactory::createEngine(m_config);
         }
         m_prevConfig = m_config;

@@ -473,3 +473,5 @@ FodyWeavers.xsd
 *.dwo
 
 *.hint
+
+.venv
