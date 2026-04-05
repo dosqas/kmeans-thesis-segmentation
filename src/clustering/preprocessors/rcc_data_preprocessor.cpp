@@ -1,34 +1,37 @@
 #include "clustering/preprocessors/rcc_data_preprocessor.hpp"
-#include "common/constants.hpp"
+#include "common/utils.hpp"
 
-namespace kmeans {
-namespace clustering {
+namespace kmeans::clustering {
 
     cv::Mat RccDataPreprocessor::prepare(const cv::Mat& frame) {
-        CV_Assert(!frame.empty());
-        Coreset leaf = buildCoresetFromFrame(frame);
-        
-        m_rcc.insertLeaf(leaf, SAMPLE_COUNT);
-        
-        Coreset rootCoreset = m_rcc.getRootCoreset();
-        
-        return convertCoresetToMat(rootCoreset);
-    }
+        core::Coreset newCoreset = core::buildCoresetFromFrame(frame);
 
-    cv::Mat RccDataPreprocessor::convertCoresetToMat(const Coreset& coreset) {
-        int rows = static_cast<int>(coreset.points.size());
-        cv::Mat samples(rows, 5, CV_32F);
-
-        for (int i = 0; i < rows; ++i) {
-            const auto& p = coreset.points[i];
-            samples.at<float>(i, 0) = p.bgr[0] * COLOR_SCALE;
-            samples.at<float>(i, 1) = p.bgr[1] * COLOR_SCALE;
-            samples.at<float>(i, 2) = p.bgr[2] * COLOR_SCALE;
-            samples.at<float>(i, 3) = p.x * SPATIAL_SCALE;
-            samples.at<float>(i, 4) = p.y * SPATIAL_SCALE;
+        if (m_frameCount % m_rebuildInterval == 0) {
+            m_currentCoreset = newCoreset;
+        } else {
+            m_currentCoreset = core::mergeCoresets(m_currentCoreset, newCoreset);
         }
+
+        m_frameCount++;
+
+        int n = static_cast<int>(m_currentCoreset.points.size());
+        cv::Mat samples(n, 5, CV_32F);
+
+        for (int i = 0; i < n; ++i) {
+            const auto& pt = m_currentCoreset.points[i];
+            cv::Vec<float, 5> feature = common::makeFeature(pt.bgr, pt.x, pt.y);
+            
+            for (int d = 0; d < 5; ++d) {
+                samples.at<float>(i, d) = feature[d];
+            }
+        }
+
         return samples;
     }
 
-}
-}
+    void RccDataPreprocessor::reset() {
+        m_frameCount = 0;
+        m_currentCoreset.points.clear();
+    }
+
+} // namespace kmeans::clustering

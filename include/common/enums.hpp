@@ -1,22 +1,18 @@
 #pragma once
 
-namespace kmeans
-{
-    enum class AlgorithmType : int
-    {
-        KMEANS_REGULAR = 0,
-        KMEANS_QUANTUM = 1
+namespace kmeans::common {
+    enum class DataStrategy {
+        FULL_DATA,
+        RCC_TREES
     };
 
-    enum class InitializationType : int
-    {
-        RANDOM = 0,
-        KMEANS_PLUSPLUS = 1
+    enum class InitializationType {
+        RANDOM,
+        KMEANS_PLUSPLUS
     };
 
-    enum class DataStrategy :int
-    {
-        FULL_DATA = 0,
-		RCC_TREES = 1
+    enum class AlgorithmType {
+        KMEANS_REGULAR,
+        KMEANS_QUANTUM
     };
 }

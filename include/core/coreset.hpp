@@ -1,7 +1,9 @@
-﻿#pragma once
+#pragma once
+
 #include <opencv2/core.hpp>
 
-namespace kmeans {
+namespace kmeans::core {
+
     // A point in a coreset represents a compressed version of one (when we sample the frame initially) or more pixels 
     // (when we merge coresets).
     // - `bgr`: the average BGR color of the sampled pixel(s).
@@ -31,20 +33,19 @@ namespace kmeans {
     // 
     // Args:
     //   frame: input image (cv::Mat, 3-channel BGR)
-    //   sample_size: how many pixels to randomly sample for coreset
     //
     // Returns:
     //   A Coreset with `sample_size` points, each with appropriate weights.
-    Coreset buildCoresetFromFrame(const cv::Mat& frame);
+    [[nodiscard]] Coreset buildCoresetFromFrame(const cv::Mat& frame);
 
     // Merge two coresets into one, keeping the size bounded by `sample_size`.
     // The result is still a valid coreset approximating the union of A and B.
     // 
     // Args:
     //   A, B: input coresets to merge
-    //   sample_size: how many pixels to randomly sample for coreset
     //
     // Returns:
     //   A merged Coreset with `sample_size` points.
-    Coreset mergeCoresets(const Coreset& A, const Coreset& B);
-}
+    [[nodiscard]] Coreset mergeCoresets(const Coreset& A, const Coreset& B);
+
+} // namespace kmeans::core

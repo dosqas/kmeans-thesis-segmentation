@@ -12,17 +12,30 @@
 #include "clustering/clustering_manager.hpp"
 #include <chrono>
 
-namespace kmeans {
-namespace io {
+namespace kmeans::io {
+
+    // RAII explicit wrapper around OpenGL texture pointers to guarantee VRAM deallocation
+    struct TextureResource {
+        GLuint id = 0;
+        TextureResource() = default;
+        ~TextureResource() noexcept {
+            if (id != 0) {
+                glDeleteTextures(1, &id);
+            }
+        }
+        // Disable copy
+        TextureResource(const TextureResource&) = delete;
+        TextureResource& operator=(const TextureResource&) = delete;
+    };
 
     class Application {
     private:
         GLFWwindow* m_window = nullptr;
         clustering::ClusteringManager m_manager;
 
-        // OpenGL Textures for rendering OpenCV matrices in ImGui
-        GLuint m_originalTexture = 0;
-        GLuint m_segmentedTexture = 0;
+        // Automatically managed OpenGL Texture handles
+        TextureResource m_originalTexture;
+        TextureResource m_segmentedTexture;
 
         // Multithreading Synchronization
         std::thread m_workerThread;
@@ -33,7 +46,7 @@ namespace io {
         cv::Mat m_latestOriginal;
         cv::Mat m_latestSegmented;
         std::vector<cv::Vec<float, 5>> m_latestCenters;
-        SegmentationConfig m_uiConfig;
+        common::SegmentationConfig m_uiConfig;
         
         std::chrono::high_resolution_clock::time_point m_lastWorkerTime;
         float m_currentWorkerFps = 0.0f;
@@ -47,17 +60,16 @@ namespace io {
 
         void initWindow();
         void initImGui();
-        void cleanup();
+        void cleanup() noexcept;
 
         void renderUI();
-        GLuint matToTexture(const cv::Mat& mat, GLuint existingTexture);
+        void matToTexture(const cv::Mat& mat, TextureResource& textureRes);
 
     public:
         Application();
-        ~Application();
+        ~Application() noexcept;
 
         void run();
     };
 
-}
-}
+} // namespace kmeans::io

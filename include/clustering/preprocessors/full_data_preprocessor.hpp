@@ -1,16 +1,17 @@
 #pragma once
+
 #include "clustering/preprocessors/data_preprocessor.hpp"
+#include <opencv2/imgproc.hpp>
 
-namespace kmeans {
-namespace clustering {
+namespace kmeans::clustering {
 
-    class FullDataPreprocessor : public DataPreprocessor {
+    class FullDataPreprocessor final : public DataPreprocessor {
     public:
         FullDataPreprocessor() = default;
-        ~FullDataPreprocessor() override = default;
+        ~FullDataPreprocessor() = default;
 
-        cv::Mat prepare(const cv::Mat& frame) override;
+        [[nodiscard]] cv::Mat prepare(const cv::Mat& frame) override final;
+        void reset() override final {}
     };
 
-}
-}
+} // namespace kmeans::clustering

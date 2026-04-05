@@ -1,32 +1,20 @@
 #include "clustering/engines/quantum_engine.hpp"
+#include "common/constants.hpp"
 #include <iostream>
+#include <stdexcept>
 
-namespace kmeans {
+namespace kmeans::clustering {
 
-    QuantumEngine::QuantumEngine() : m_connected(false) {
+    QuantumEngine::QuantumEngine() : m_context(1), m_socket(m_context, zmq::socket_type::req) {
+        m_socket.set(zmq::sockopt::rcvtimeo, constants::IPC_TIMEOUT_MS);
+        m_socket.set(zmq::sockopt::sndtimeo, constants::IPC_TIMEOUT_MS);
+        
         try {
-            m_context = std::make_unique<zmq::context_t>(1);
-            m_socket = std::make_unique<zmq::socket_t>(*m_context, zmq::socket_type::req);
-            
-            // Long timeouts so Python Quantum Simulator has ample time to boot and process batches
-            m_socket->set(zmq::sockopt::rcvtimeo, 10000); 
-            m_socket->set(zmq::sockopt::sndtimeo, 10000);
-            
-            // Connect to the local Python Qiskit ZeroMQ Server
-            m_socket->connect("tcp://127.0.0.1:5555");
+            m_socket.connect(constants::IPC_SOCKET);
             m_connected = true;
-            std::cout << "[QuantumEngine] Connected to Python IPC Server on tcp://127.0.0.1:5555" << std::endl;
         } catch (const zmq::error_t& e) {
-            std::cerr << "QuantumEngine IPC ZMQ Error: " << e.what() << std::endl;
-        }
-    }
-
-    QuantumEngine::~QuantumEngine() {
-        if (m_socket) {
-            m_socket->close();
-        }
-        if (m_context) {
-            m_context->close();
+            std::cerr << "QuantumEngine ZMQ connect error: " << e.what() << std::endl;
+            m_connected = false;
         }
     }
 
@@ -35,70 +23,68 @@ namespace kmeans {
         const std::vector<cv::Vec<float, 5>>& initialCenters,
         int k) 
     {
-        if (!m_connected) return initialCenters;
-
-        int32_t n = samples.rows;
-        int32_t k32 = k;
-        
-        // 1. Pack data: [N, K, Samples..., Centers...]
-        size_t bytesN = sizeof(int32_t);
-        size_t bytesK = sizeof(int32_t);
-        size_t bytesSamples = n * 5 * sizeof(float);
-        size_t bytesCenters = k * 5 * sizeof(float);
-        
-        size_t totalSize = bytesN + bytesK + bytesSamples + bytesCenters;
-        zmq::message_t req(totalSize);
-        
-        char* ptr = (char*)req.data();
-        memcpy(ptr, &n, bytesN); ptr += bytesN;
-        memcpy(ptr, &k32, bytesK); ptr += bytesK;
-        
-        if(samples.isContinuous()) {
-            memcpy(ptr, samples.ptr<float>(0), bytesSamples);
-            ptr += bytesSamples;
-        } else {
-            // Fallback for non-continuous Mats
-            for(int i = 0; i < n; i++) {
-                memcpy(ptr, samples.ptr<float>(i), 5 * sizeof(float));
-                ptr += 5 * sizeof(float);
-            }
+        if (!m_connected) {
+            std::cerr << "Warning: ZMQ Socket disconnected, falling back" << std::endl;
+            return initialCenters;
         }
-        
-        memcpy(ptr, initialCenters.data(), bytesCenters);
 
-        // 2. Send Data
+        int n = samples.rows;
+        size_t samples_bytes = n * 5 * sizeof(float);
+        size_t centers_bytes = k * 5 * sizeof(float);
+        size_t header_bytes = 2 * sizeof(int);
+        size_t total_size = header_bytes + samples_bytes + centers_bytes;
+
+        zmq::message_t request(total_size);
+        char* ptr = static_cast<char*>(request.data());
+
+        // Header
+        std::memcpy(ptr, &n, sizeof(int)); ptr += sizeof(int);
+        std::memcpy(ptr, &k, sizeof(int)); ptr += sizeof(int);
+
+        // Samples
+        for (int i = 0; i < n; ++i) {
+            const float* row = samples.ptr<float>(i);
+            std::memcpy(ptr, row, 5 * sizeof(float));
+            ptr += 5 * sizeof(float);
+        }
+
+        // Centers
+        for (int i = 0; i < k; ++i) {
+            std::memcpy(ptr, initialCenters[i].val, 5 * sizeof(float));
+            ptr += 5 * sizeof(float);
+        }
+
         try {
-            auto res = m_socket->send(req, zmq::send_flags::none);
-            if (!res) {
-                // Return fallback old centers if the network timeout popped
+            if (!m_socket.send(request, zmq::send_flags::none)) {
+                return initialCenters;
+            }
+
+            zmq::message_t reply;
+            if (!m_socket.recv(reply, zmq::recv_flags::none)) {
+                return initialCenters;
+            }
+
+            if (reply.size() == 3 && std::memcmp(reply.data(), "ERR", 3) == 0) {
+                return initialCenters; // Python engine error
+            }
+
+            if (reply.size() != centers_bytes) {
                 return initialCenters; 
             }
 
-            // 3. Receive new centers
-            zmq::message_t reply;
-            auto rec_res = m_socket->recv(reply, zmq::recv_flags::none);
-            
-            if (rec_res && reply.size() == bytesCenters) {
-                std::vector<cv::Vec<float, 5>> newCenters(k);
-                memcpy(newCenters.data(), reply.data(), bytesCenters);
-                return newCenters;
+            std::vector<cv::Vec<float, 5>> new_centers(k);
+            const float* rep_ptr = static_cast<const float*>(reply.data());
+            for (int i = 0; i < k; ++i) {
+                for (int d = 0; d < 5; ++d) {
+                    new_centers[i][d] = rep_ptr[i * 5 + d];
+                }
             }
+            return new_centers;
+
         } catch (const zmq::error_t& e) {
-            std::cerr << "ZMQ Exception during transport: " << e.what() << " - Reconnecting..." << std::endl;
-            m_socket = std::make_unique<zmq::socket_t>(*m_context, zmq::socket_type::req);
-            m_socket->set(zmq::sockopt::rcvtimeo, 10000); 
-            m_socket->set(zmq::sockopt::sndtimeo, 10000);
-            m_socket->set(zmq::sockopt::linger, 0);
-            m_socket->connect("tcp://127.0.0.1:5555");
-            return initialCenters;
-        } catch (const std::exception& e) {
-            std::cerr << "Standard Exception during transport: " << e.what() << std::endl;
-            return initialCenters;
-        } catch (...) {
-            std::cerr << "Unknown exception during transport" << std::endl;
+            std::cerr << "ZMQ recv exception: " << e.what() << std::endl;
             return initialCenters;
         }
-
-        return initialCenters;
     }
-}
+
+} // namespace kmeans::clustering

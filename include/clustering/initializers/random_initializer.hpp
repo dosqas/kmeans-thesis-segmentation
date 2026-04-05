@@ -1,17 +1,16 @@
 #pragma once
+
 #include "clustering/initializers/initializer.hpp"
 #include <random>
 
-namespace kmeans {
-namespace clustering {
+namespace kmeans::clustering {
 
-    class RandomInitializer : public Initializer {
+    class RandomInitializer final : public Initializer {
     public:
         RandomInitializer() = default;
-        ~RandomInitializer() override = default;
+        ~RandomInitializer() = default;
 
-        std::vector<cv::Vec<float, 5>> initialize(const cv::Mat& samples, int k) const override;
+        [[nodiscard]] std::vector<cv::Vec<float, 5>> initialize(const cv::Mat& samples, int k) const override final;
     };
 
-}
-}
+} // namespace kmeans::clustering

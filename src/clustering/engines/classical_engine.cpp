@@ -1,7 +1,8 @@
 #include "clustering/engines/classical_engine.hpp"
 #include <limits>
+#include <random>
 
-namespace kmeans {
+namespace kmeans::clustering {
 
     std::vector<cv::Vec<float, 5>> ClassicalEngine::run(
         const cv::Mat& samples,
@@ -11,6 +12,9 @@ namespace kmeans {
         std::vector<cv::Vec<float, 5>> centers = initialCenters;
         int numPoints = samples.rows;
         std::vector<int> labels(numPoints, -1);
+
+        std::mt19937 gen(std::random_device{}());
+        std::uniform_int_distribution<> dis(0, numPoints - 1);
 
         for (int iter = 0; iter < 20; ++iter) {
             bool changed = false;
@@ -24,7 +28,6 @@ namespace kmeans {
                 cv::Vec<float, 5> point(rowPtr[0], rowPtr[1], rowPtr[2], rowPtr[3], rowPtr[4]);
 
                 for (int j = 0; j < k; ++j) {
-                    // Manually calculate squared distance to avoid any cv::norm mismatch
                     float d2 = 0;
                     for (int d = 0; d < 5; ++d) {
                         float diff = point[d] - centers[j][d];
@@ -61,15 +64,12 @@ namespace kmeans {
 
             for (int j = 0; j < k; ++j) {
                 if (counts[j] > 0) {
-                    centers[j] = newSums[j] / (float)counts[j];
+                    centers[j] = newSums[j] / static_cast<float>(counts[j]);
                 } else {
-                    // Empty cluster detected!
-                    // This happens when sudden color changes leave a center too far from any new data points.
-                    // We reinitialize it to a random data point to pull it back into the active color space.
-                    int randIdx = std::rand() % numPoints;
+                    int randIdx = dis(gen);
                     const float* randPtr = samples.ptr<float>(randIdx);
                     centers[j] = cv::Vec<float, 5>(randPtr[0], randPtr[1], randPtr[2], randPtr[3], randPtr[4]);
-                    changed = true; // Force another iteration to integrate the resurrected cluster
+                    changed = true; 
                 }
             }
         }
@@ -77,4 +77,4 @@ namespace kmeans {
         return centers;
     }
 
-}
+} // namespace kmeans::clustering

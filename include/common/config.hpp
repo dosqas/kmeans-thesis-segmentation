@@ -1,12 +1,13 @@
 #pragma once
 #include "common/enums.hpp"
 
-namespace kmeans {
+namespace kmeans::common {
     struct SegmentationConfig {
-        AlgorithmType algorithm = AlgorithmType::KMEANS_REGULAR;
-        InitializationType init = InitializationType::RANDOM;
         DataStrategy strategy = DataStrategy::RCC_TREES;
-        int k = 5;
-        int learningInterval = 5;
+        InitializationType init = InitializationType::KMEANS_PLUSPLUS;
+        AlgorithmType algorithm = AlgorithmType::KMEANS_REGULAR;
+        
+        int k = 3;
+        int learningInterval = 15;
     };
 }

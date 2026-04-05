@@ -1,59 +1,61 @@
 #include "clustering/initializers/kmeans_plus_plus_initializer.hpp"
-#include <algorithm>
+#include <limits>
+#include <random>
 
-namespace kmeans {
-namespace clustering {
+namespace kmeans::clustering {
 
     std::vector<cv::Vec<float, 5>> KMeansPlusPlusInitializer::initialize(const cv::Mat& samples, int k) const {
-        CV_Assert(!samples.empty() && k > 0 && k <= samples.rows);
         std::vector<cv::Vec<float, 5>> centers;
         centers.reserve(k);
+        int numPoints = samples.rows;
 
         std::mt19937 gen(std::random_device{}());
-        std::uniform_int_distribution<> dis(0, samples.rows - 1);
+        std::uniform_int_distribution<> dis(0, numPoints - 1);
 
-        // Helper to safely read a row into a Vec5f
-        auto readPoint = [&](int row) {
-            const float* ptr = samples.ptr<float>(row);
-            return cv::Vec<float, 5>(ptr[0], ptr[1], ptr[2], ptr[3], ptr[4]);
-        };
+        // First center random
+        int firstIdx = dis(gen);
+        const float* firstPtr = samples.ptr<float>(firstIdx);
+        centers.emplace_back(firstPtr[0], firstPtr[1], firstPtr[2], firstPtr[3], firstPtr[4]);
 
-        // 1. Pick the first center completely at random
-        centers.push_back(readPoint(dis(gen)));
+        std::vector<float> distances(numPoints, std::numeric_limits<float>::max());
 
-        // 2. Pick the remaining k-1 centers
         for (int i = 1; i < k; ++i) {
-            std::vector<float> distancesSq(samples.rows);
             float sumDistSq = 0.0f;
 
-            // For each point, find the distance to the NEAREST existing center
-            for (int p = 0; p < samples.rows; ++p) {
-                float minD2 = 1e20f;
-                cv::Vec<float, 5> point = readPoint(p);
+            for (int p = 0; p < numPoints; ++p) {
+                const float* pPtr = samples.ptr<float>(p);
+                float currDistSq = 0.0f;
+                const auto& lastCenter = centers.back();
 
-                for (const auto& c : centers) {
-                    float d2 = cv::norm(point - c, cv::NORM_L2SQR);
-                    if (d2 < minD2) minD2 = d2;
+                for (int d = 0; d < 5; ++d) {
+                    float diff = pPtr[d] - lastCenter[d];
+                    currDistSq += diff * diff;
                 }
-                distancesSq[p] = minD2;
-                sumDistSq += minD2;
+
+                if (currDistSq < distances[p]) {
+                    distances[p] = currDistSq;
+                }
+                sumDistSq += distances[p];
             }
 
-            // Weighted probability distribution: pick next center proportional to distance squared
-            std::uniform_real_distribution<float> probDis(0, sumDistSq);
-            float threshold = probDis(gen);
-            float currentSum = 0.0f;
+            std::uniform_real_distribution<float> fdis(0.0f, sumDistSq);
+            float target = fdis(gen);
+            float cumulative = 0.0f;
+            int selectedIdx = numPoints - 1;
 
-            for (int p = 0; p < samples.rows; ++p) {
-                currentSum += distancesSq[p];
-                if (currentSum >= threshold) {
-                    centers.push_back(readPoint(p));
+            for (int p = 0; p < numPoints; ++p) {
+                cumulative += distances[p];
+                if (cumulative >= target) {
+                    selectedIdx = p;
                     break;
                 }
             }
+
+            const float* selPtr = samples.ptr<float>(selectedIdx);
+            centers.emplace_back(selPtr[0], selPtr[1], selPtr[2], selPtr[3], selPtr[4]);
         }
+
         return centers;
     }
 
-}
-}
+} // namespace kmeans::clustering

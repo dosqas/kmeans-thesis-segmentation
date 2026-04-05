@@ -9,6 +9,10 @@ find_package(glfw3 REQUIRED)
 
 enable_language(CUDA)
 
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+
 # Include directories
 include_directories(
     ${OpenCV_INCLUDE_DIRS}
@@ -37,8 +41,11 @@ add_library(kmeans_core
 
 set_source_files_properties(src/backend/cuda_kernels.cu PROPERTIES LANGUAGE CUDA)
 set_target_properties(kmeans_core PROPERTIES
+    CXX_STANDARD 17
+    CXX_STANDARD_REQUIRED ON
+    CXX_EXTENSIONS OFF
     CUDA_SEPARABLE_COMPILATION ON       # Enable separable compilation for CUDA (different from .cpp files)
-    CUDA_STANDARD 14                    # Use C++14 standard for CUDA files
+    CUDA_STANDARD 17                    # Use C++14 standard for CUDA files
     CUDA_STANDARD_REQUIRED ON           # Enforce the use of the specified C++ standard
     CUDA_ARCHITECTURES "native"         # Specify target architecture (native for the current machine)
 )
@@ -67,6 +74,13 @@ target_link_libraries(kmeans_core PUBLIC imgui)
 add_executable(kmeans_thesis_segmentation src/main.cpp)
 
 # Set CUDA properties for the main executable
-set_target_properties(kmeans_thesis_segmentation PROPERTIES CUDA_ARCHITECTURES "native")
+set_target_properties(kmeans_thesis_segmentation PROPERTIES
+    CXX_STANDARD 17
+    CXX_STANDARD_REQUIRED ON
+    CXX_EXTENSIONS OFF
+    CUDA_STANDARD 17
+    CUDA_STANDARD_REQUIRED ON
+    CUDA_ARCHITECTURES "native"
+)
 
 target_link_libraries(kmeans_thesis_segmentation PRIVATE kmeans_core imgui)

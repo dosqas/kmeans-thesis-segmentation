@@ -1,20 +1,20 @@
 #pragma once
+
 #include "clustering/engines/kmeans_engine.hpp"
-#include "common/constants.hpp"
 #include <opencv2/core.hpp>
 #include <vector>
 
-namespace kmeans {
+namespace kmeans::clustering {
 
-    class ClassicalEngine : public KMeansEngine {
+    class ClassicalEngine final : public KMeansEngine {
     public:
         ClassicalEngine() = default;
-        virtual ~ClassicalEngine() = default;
+        ~ClassicalEngine() = default;
 
-        std::vector<cv::Vec<float, 5>> run(
+        [[nodiscard]] std::vector<cv::Vec<float, 5>> run(
             const cv::Mat& samples,
             const std::vector<cv::Vec<float, 5>>& initialCenters,
-            int k) override;
+            int k) override final;
     };
 
-}
+} // namespace kmeans::clustering

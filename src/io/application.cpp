@@ -13,14 +13,11 @@
 #include "common/constants.hpp"
 
 // Windows <GL/gl.h> strictly supports OpenGL 1.1. 
-// GL_CLAMP_TO_EDGE (0x812F) was introduced in OpenGL 1.2, so we manually define the constant
-// to avoid importing bulky extension wranglers (GLEW/GLAD) just for a single texture wrap setting.
 #ifndef GL_CLAMP_TO_EDGE
 #define GL_CLAMP_TO_EDGE 0x812F
 #endif
 
-namespace kmeans {
-namespace io {
+namespace kmeans::io {
 
     Application::Application() {
         initWindow();
@@ -29,7 +26,7 @@ namespace io {
         m_initialized = true;
     }
 
-    Application::~Application() {
+    Application::~Application() noexcept {
         if (m_initialized) {
             cleanup();
         }
@@ -44,8 +41,6 @@ namespace io {
         // GL 3.0 + GLSL 130
         glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
         glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);
-        
-        // Disable window resizing and maximizing
         glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
 
         m_window = glfwCreateWindow(1400, 438, "K-Means Segmentation Thesis - ImGui Dashboard", NULL, NULL);
@@ -60,25 +55,19 @@ namespace io {
     }
 
     void Application::initImGui() {
-        // Setup Dear ImGui context
         IMGUI_CHECKVERSION();
         ImGui::CreateContext();
         ImGuiIO& io = ImGui::GetIO(); (void)io;
         io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
 
-        // Setup Dear ImGui style (Dark modern look)
         ImGui::StyleColorsDark();
 
-        // Setup Platform/Renderer bindings
         ImGui_ImplGlfw_InitForOpenGL(m_window, true);
         ImGui_ImplOpenGL3_Init("#version 130");
     }
 
-    void Application::cleanup() {
-        // Cleanup textures
-        if (m_originalTexture) glDeleteTextures(1, &m_originalTexture);
-        if (m_segmentedTexture) glDeleteTextures(1, &m_segmentedTexture);
-
+    void Application::cleanup() noexcept {
+        // Textures are automatically deleted by the TextureResource RAII destructor 
         ImGui_ImplOpenGL3_Shutdown();
         ImGui_ImplGlfw_Shutdown();
         ImGui::DestroyContext();
@@ -87,35 +76,27 @@ namespace io {
         glfwTerminate();
     }
 
-    // Helper method to convert an OpenCV Mat (BGR format) to an OpenGL Texture
-    GLuint Application::matToTexture(const cv::Mat& mat, GLuint existingTexture) {
-        if (mat.empty()) return existingTexture;
+    void Application::matToTexture(const cv::Mat& mat, TextureResource& textureRes) {
+        if (mat.empty()) return;
 
         cv::Mat rgbMat;
         cv::cvtColor(mat, rgbMat, cv::COLOR_BGR2RGBA);
 
-        GLuint textureId = existingTexture;
-        if (textureId == 0) {
-            glGenTextures(1, &textureId);
+        if (textureRes.id == 0) {
+            glGenTextures(1, &textureRes.id);
         }
 
-        glBindTexture(GL_TEXTURE_2D, textureId);
+        glBindTexture(GL_TEXTURE_2D, textureRes.id);
 
-        // Setup filtering parameters for display
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 
-        // Upload pixels into texture
-        // Avoid glPixelStorei(GL_UNPACK_ALIGNMENT, 1); since OpenCV usually aligns to 4 bytes for RGBA
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, rgbMat.cols, rgbMat.rows, 0, GL_RGBA, GL_UNSIGNED_BYTE, rgbMat.ptr());
-
-        return textureId;
     }
 
     void Application::renderUI() {
-        // Start the ImGui frame
         ImGui_ImplOpenGL3_NewFrame();
         ImGui_ImplGlfw_NewFrame();
         ImGui::NewFrame();
@@ -125,12 +106,11 @@ namespace io {
         ImGui::SetNextWindowSize(ImVec2(350, ImGui::GetIO().DisplaySize.y), ImGuiCond_Always);
         ImGui::Begin("Clustering Controls", nullptr, ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoCollapse);
         
-        // Grab local config lock only when combo boxes change
         bool configChanged = false;
         
         ImGui::Text("Core Hyperparameters");
-        configChanged |= ImGui::SliderInt("Clusters (k)", &m_uiConfig.k, 2, 20);
-        configChanged |= ImGui::SliderInt("Learning Interval", &m_uiConfig.learningInterval, 1, 60);
+        configChanged |= ImGui::SliderInt("Clusters (k)", &m_uiConfig.k, constants::K_MIN, constants::K_MAX);
+        configChanged |= ImGui::SliderInt("Learning Interval", &m_uiConfig.learningInterval, constants::LEARN_INTERVAL_MIN, constants::LEARN_INTERVAL_MAX);
         if (ImGui::IsItemHovered()) {
              ImGui::SetTooltip("How many frames to cache clusters before re-running K-Means. Set to 1 to force calculation every frame.");
         }
@@ -140,29 +120,28 @@ namespace io {
         ImGui::Text("Architecture Strategy");
         
         const char* preprocessors[] = { "Full Data (Flatten)", "RCC Tree (Coreset)" };
-        int currentPreprocessor = (m_uiConfig.strategy == DataStrategy::FULL_DATA) ? 0 : 1;
+        int currentPreprocessor = (m_uiConfig.strategy == common::DataStrategy::FULL_DATA) ? 0 : 1;
         if (ImGui::Combo("Data Preprocessor", &currentPreprocessor, preprocessors, 2)) {
-            m_uiConfig.strategy = (currentPreprocessor == 0) ? DataStrategy::FULL_DATA : DataStrategy::RCC_TREES;
+            m_uiConfig.strategy = (currentPreprocessor == 0) ? common::DataStrategy::FULL_DATA : common::DataStrategy::RCC_TREES;
             configChanged = true;
         }
 
         const char* initializers[] = { "K-Means++", "Random" };
-        int currentInit = (m_uiConfig.init == InitializationType::KMEANS_PLUSPLUS) ? 0 : 1;
+        int currentInit = (m_uiConfig.init == common::InitializationType::KMEANS_PLUSPLUS) ? 0 : 1;
         if (ImGui::Combo("Initialization", &currentInit, initializers, 2)) {
-            m_uiConfig.init = (currentInit == 0) ? InitializationType::KMEANS_PLUSPLUS : InitializationType::RANDOM;
+            m_uiConfig.init = (currentInit == 0) ? common::InitializationType::KMEANS_PLUSPLUS : common::InitializationType::RANDOM;
             configChanged = true;
         }
 
         const char* engines[] = { "Classical (CPU)", "Quantum" };
-        int currentEngine = (m_uiConfig.algorithm == AlgorithmType::KMEANS_REGULAR) ? 0 : 1;
+        int currentEngine = (m_uiConfig.algorithm == common::AlgorithmType::KMEANS_REGULAR) ? 0 : 1;
         if (ImGui::Combo("Execution Engine", &currentEngine, engines, 2)) {
-             m_uiConfig.algorithm = (currentEngine == 0) ? AlgorithmType::KMEANS_REGULAR : AlgorithmType::KMEANS_QUANTUM;
+             m_uiConfig.algorithm = (currentEngine == 0) ? common::AlgorithmType::KMEANS_REGULAR : common::AlgorithmType::KMEANS_QUANTUM;
              configChanged = true;
         }
         
-        // Save config thread-safely
         if (configChanged) {
-            std::lock_guard<std::mutex> lock(m_configMutex);
+            std::scoped_lock<std::mutex> lock(m_configMutex);
         }
         
         ImGui::Separator();
@@ -174,7 +153,6 @@ namespace io {
         
         ImGui::Separator();
         
-        // Advanced metrics like FPS graph
         ImGui::Text("Performance Dashboard");
         ImGui::TextColored(ImVec4(0.5f, 0.5f, 0.5f, 1.0f), "UI Render Speed: %.1f FPS", ImGui::GetIO().Framerate);
         
@@ -185,14 +163,14 @@ namespace io {
         float algoTimeMs = 0.0f;
         uint32_t currentFrames = 0;
         {
-            std::lock_guard<std::mutex> lock(m_dataMutex);
+            std::scoped_lock<std::mutex> lock(m_dataMutex);
             workerFps = m_currentWorkerFps;
             algoTimeMs = m_currentAlgoTimeMs;
             currentFrames = m_processedFrames;
         }
 
         if (currentFrames != lastProcessedFrames) {
-            if (algoFpsHistory.size() >= 90) { // Keep last 90 frames (~3 sec at 30 fps)
+            if (algoFpsHistory.size() >= 90) { 
                 algoFpsHistory.erase(algoFpsHistory.begin());
             }
             algoFpsHistory.push_back(workerFps);
@@ -208,13 +186,12 @@ namespace io {
                 if (f > maxFps) maxFps = f;
                 sumFps += f;
             }
-            float avgFps = sumFps / algoFpsHistory.size();
+            float avgFps = sumFps / static_cast<float>(algoFpsHistory.size());
 
             ImGui::Text("Algorithm Execution: %.2f ms", algoTimeMs);
             ImGui::Text("Camera Pipeline: %.1f FPS", workerFps);
             ImGui::TextColored(ImVec4(0.4f, 0.8f, 0.4f, 1.0f), "Avg: %.1f | Min: %.1f | Max: %.1f", avgFps, minFps, maxFps);
             
-            // Render the graph line for the background pipeline speed!
             ImGui::PlotLines("##Pipeline History", algoFpsHistory.data(), static_cast<int>(algoFpsHistory.size()), 0, NULL, 0.0f, maxFps * 1.5f + 5.0f, ImVec2(0, 80));
         }
 
@@ -228,7 +205,7 @@ namespace io {
         cv::Mat localOriginal;
         cv::Mat localSegmented;
         {
-            std::lock_guard<std::mutex> lock(m_dataMutex);
+            std::scoped_lock<std::mutex> lock(m_dataMutex);
             if (!m_latestOriginal.empty()) {
                 localOriginal = m_latestOriginal.clone();
                 localSegmented = m_latestSegmented.clone();
@@ -236,21 +213,21 @@ namespace io {
         }
         
         if (!localOriginal.empty()) {
-            m_originalTexture = matToTexture(localOriginal, m_originalTexture);
-            m_segmentedTexture = matToTexture(localSegmented, m_segmentedTexture);
+            matToTexture(localOriginal, m_originalTexture);
+            matToTexture(localSegmented, m_segmentedTexture);
 
             ImGui::BeginGroup();
             ImGui::Text("Original Frame");
-            ImVec2 imgSize(localOriginal.cols * 0.8f, localOriginal.rows * 0.8f);
-            ImGui::Image((void*)(intptr_t)m_originalTexture, imgSize);
+            ImVec2 imgSize(static_cast<float>(localOriginal.cols) * 0.8f, static_cast<float>(localOriginal.rows) * 0.8f);
+            ImGui::Image((void*)(intptr_t)m_originalTexture.id, imgSize);
             ImGui::EndGroup();
             
             ImGui::SameLine();
 
             ImGui::BeginGroup();
             ImGui::Text("Clustered Frame");
-            ImVec2 segSize(localSegmented.cols * 0.8f, localSegmented.rows * 0.8f);
-            ImGui::Image((void*)(intptr_t)m_segmentedTexture, segSize);
+            ImVec2 segSize(static_cast<float>(localSegmented.cols) * 0.8f, static_cast<float>(localSegmented.rows) * 0.8f);
+            ImGui::Image((void*)(intptr_t)m_segmentedTexture.id, segSize);
             ImGui::EndGroup();
         } else {
             ImGui::Text("Warming up camera thread...");
@@ -283,9 +260,9 @@ namespace io {
                 if (frame.empty()) continue;
 
                 // Safely ingest latest config from UI panel
-                SegmentationConfig currentConfig;
+                common::SegmentationConfig currentConfig;
                 {
-                    std::lock_guard<std::mutex> lock(m_configMutex);
+                    std::scoped_lock<std::mutex> lock(m_configMutex);
                     currentConfig = m_uiConfig;
                 }
                 m_manager.getConfig() = currentConfig;
@@ -299,7 +276,7 @@ namespace io {
                 cv::resize(frame, smallFrame, cv::Size(200, 150)); 
                 
                 auto startAlgo = std::chrono::high_resolution_clock::now();
-                cv::Mat segmented = m_manager.segmentFrame(smallFrame).clone();
+                cv::Mat segmented = m_manager.segmentFrame(smallFrame); // Returned by value, clone() not needed
                 auto endAlgo = std::chrono::high_resolution_clock::now();
                 
                 float algoTimeMs = std::chrono::duration<float, std::milli>(endAlgo - startAlgo).count();
@@ -310,16 +287,16 @@ namespace io {
                 }
                 m_lastWorkerTime = endAlgo;
 
-                auto centers = m_manager.getCenters();
+                auto& centers = m_manager.getCenters();
 
                 cv::Mat displaySegmented;
                 cv::resize(segmented, displaySegmented, frame.size(), 0, 0, cv::INTER_NEAREST);
 
                 if (m_showCentroids) {
                     for (const auto& c : centers) {
-                        cv::Point centerPt(static_cast<int>((c[3] / kmeans::SPATIAL_SCALE) * frame.cols), 
-                                           static_cast<int>((c[4] / kmeans::SPATIAL_SCALE) * frame.rows));
-                        cv::Scalar color(c[0] / kmeans::COLOR_SCALE, c[1] / kmeans::COLOR_SCALE, c[2] / kmeans::COLOR_SCALE);
+                        cv::Point centerPt(static_cast<int>((c[3] / constants::SPATIAL_SCALE) * frame.cols), 
+                                           static_cast<int>((c[4] / constants::SPATIAL_SCALE) * frame.rows));
+                        cv::Scalar color(c[0] / constants::COLOR_SCALE, c[1] / constants::COLOR_SCALE, c[2] / constants::COLOR_SCALE);
                         cv::circle(displaySegmented, centerPt, 6, color, -1);
                         cv::circle(displaySegmented, centerPt, 8, cv::Scalar(255, 255, 255), 2);
                     }
@@ -327,9 +304,9 @@ namespace io {
 
                 // Push results safely
                 {
-                    std::lock_guard<std::mutex> lock(m_dataMutex);
-                    m_latestOriginal = frame;
-                    m_latestSegmented = displaySegmented;
+                    std::scoped_lock<std::mutex> lock(m_dataMutex);
+                    m_latestOriginal = std::move(frame);
+                    m_latestSegmented = std::move(displaySegmented);
                     m_latestCenters = centers;
                     m_currentWorkerFps = pipelineFps;
                     m_currentAlgoTimeMs = algoTimeMs;
@@ -351,5 +328,4 @@ namespace io {
         }
     }
 
-}
-}
+} // namespace kmeans::io

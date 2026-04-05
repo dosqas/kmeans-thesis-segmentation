@@ -5,33 +5,36 @@
 
 #include "cuda_runtime.h"
 
-namespace kmeans {
-class CudaAssignmentContext {
- private:
-  int m_width, m_height, m_k;
-  cudaStream_t m_stream;
-  unsigned char* d_input = nullptr;
-  unsigned char* d_output = nullptr;
-  float* d_centers = nullptr;
+namespace kmeans::backend {
 
-  unsigned char* h_input_pinned = nullptr;
-  unsigned char* h_output_pinned = nullptr;
-  float* h_centers_pinned = nullptr;
+    class CudaAssignmentContext {
+    private:
+        int m_width;
+        int m_height;
+        int m_k;
+        cudaStream_t m_stream;
+        unsigned char* d_input = nullptr;
+        unsigned char* d_output = nullptr;
+        float* d_centers = nullptr;
 
-  size_t m_imgSize;
-  size_t m_centersSize;
+        unsigned char* h_input_pinned = nullptr;
+        unsigned char* h_output_pinned = nullptr;
+        float* h_centers_pinned = nullptr;
 
- public:
-  CudaAssignmentContext(int width, int height, int k);
-  ~CudaAssignmentContext();
+        size_t m_imgSize;
+        size_t m_centersSize;
 
-  CudaAssignmentContext(const CudaAssignmentContext&) = delete;
-  CudaAssignmentContext& operator=(const CudaAssignmentContext&) = delete;
+    public:
+        CudaAssignmentContext(int width, int height, int k);
+        ~CudaAssignmentContext() noexcept;
 
-  int getWidth() { return m_width; }
-  int getK() { return m_k; }
+        CudaAssignmentContext(const CudaAssignmentContext&) = delete;
+        CudaAssignmentContext& operator=(const CudaAssignmentContext&) = delete;
 
-  void run(const cv::Mat& frame, const std::vector<cv::Vec<float, 5>>& centers,
-           cv::Mat& output);
-};
-}
+        [[nodiscard]] int getWidth() const noexcept { return m_width; }
+        [[nodiscard]] int getK() const noexcept { return m_k; }
+
+        void run(const cv::Mat& frame, const std::vector<cv::Vec<float, 5>>& centers, cv::Mat& output);
+    };
+
+} // namespace kmeans::backend

@@ -3,10 +3,9 @@
 #include "common/enums.hpp"
 #include "common/config.hpp"
 #include "common/constants.hpp"
-#include "opencv2/core.hpp"
+#include <opencv2/core.hpp>
 
-namespace kmeans {
-namespace clustering {
+namespace kmeans::clustering {
 
     ClusteringManager::ClusteringManager() {
         updateStategyImplementations();
@@ -29,16 +28,12 @@ namespace clustering {
         std::vector<cv::Vec<float, 5>> centers = computeCenters(frame);
 
         if (!m_cudaContext || m_cudaContext->getWidth() != frame.cols || m_cudaContext->getK() != m_config.k) {
-            m_cudaContext = std::make_unique<CudaAssignmentContext>(frame.cols, frame.rows, m_config.k);
+            m_cudaContext = std::make_unique<backend::CudaAssignmentContext>(frame.cols, frame.rows, m_config.k);
         }
 
         cv::Mat result(frame.rows, frame.cols, CV_8UC3);
 
-        m_cudaContext->run(
-            frame,
-            centers,
-            result
-        );
+        m_cudaContext->run(frame, centers, result);
         
         m_centers = centers;
         return result;
@@ -60,7 +55,7 @@ namespace clustering {
         cv::Mat samples = m_dataPreprocessor->prepare(frame);
 
         std::vector<cv::Vec<float, 5>> initialCenters;
-        if (m_hasPrevious && m_previousCenters.size() == m_config.k) {
+        if (m_hasPrevious && static_cast<int>(m_previousCenters.size()) == m_config.k) {
             initialCenters = m_previousCenters;
         } else {
             initialCenters = m_initializer->initialize(samples, m_config.k);
@@ -74,5 +69,4 @@ namespace clustering {
         return m_previousCenters;
     }
 
-}
-}
+} // namespace kmeans::clustering

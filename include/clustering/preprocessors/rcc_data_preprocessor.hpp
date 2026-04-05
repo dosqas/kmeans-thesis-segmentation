@@ -1,23 +1,24 @@
 #pragma once
+
 #include "clustering/preprocessors/data_preprocessor.hpp"
 #include "core/rcc.hpp"
+#include <vector>
 
-namespace kmeans {
-namespace clustering {
+namespace kmeans::clustering {
 
-    class RccDataPreprocessor : public DataPreprocessor {
+    class RccDataPreprocessor final : public DataPreprocessor {
     private:
-        RCC m_rcc;
-
-        cv::Mat convertCoresetToMat(const Coreset& coreset);
+        int m_frameCount = 0;
+        core::Coreset m_currentCoreset;
+        const int m_rebuildInterval = 60;
 
     public:
         RccDataPreprocessor() = default;
-        ~RccDataPreprocessor() override = default;
+        ~RccDataPreprocessor() = default;
 
-        cv::Mat prepare(const cv::Mat& frame) override;
-        void reset() override { m_rcc.clear(); }
+        [[nodiscard]] cv::Mat prepare(const cv::Mat& frame) override final;
+        
+        void reset() override final;
     };
 
-}
-}
+} // namespace kmeans::clustering

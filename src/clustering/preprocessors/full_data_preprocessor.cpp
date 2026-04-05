@@ -1,34 +1,31 @@
 #include "clustering/preprocessors/full_data_preprocessor.hpp"
-#include "common/constants.hpp"
+#include "common/utils.hpp"
 
-namespace kmeans {
-namespace clustering {
+namespace kmeans::clustering {
 
     cv::Mat FullDataPreprocessor::prepare(const cv::Mat& frame) {
-        CV_Assert(!frame.empty());
-        int rows = frame.rows;
-        int cols = frame.cols;
-        int totalPixels = rows * cols;
+        int n = frame.rows * frame.cols;
+        cv::Mat samples(n, 5, CV_32F);
 
-        cv::Mat samples(totalPixels, 5, CV_32F);
+        int idx = 0;
+        for (int r = 0; r < frame.rows; ++r) {
+            const cv::Vec3b* rowPtr = frame.ptr<cv::Vec3b>(r);
+            for (int c = 0; c < frame.cols; ++c) {
+                const cv::Vec3b& bgr = rowPtr[c];
+                float x01 = static_cast<float>(c) / frame.cols;
+                float y01 = static_cast<float>(r) / frame.rows;
 
-        for (int r = 0; r < rows; ++r) {
-            for (int c = 0; c < cols; ++c) {
-                int idx = r * cols + c;
-                cv::Vec3b pixel = frame.at<cv::Vec3b>(r, c);
+                cv::Vec<float, 5> feature = common::makeFeature(
+                    cv::Vec3f(bgr[0], bgr[1], bgr[2]), x01, y01
+                );
 
-                float x01 = static_cast<float>(c) / cols;
-                float y01 = static_cast<float>(r) / rows;
-
-                samples.at<float>(idx, 0) = pixel[0] * kmeans::COLOR_SCALE;
-                samples.at<float>(idx, 1) = pixel[1] * kmeans::COLOR_SCALE;
-                samples.at<float>(idx, 2) = pixel[2] * kmeans::COLOR_SCALE;
-                samples.at<float>(idx, 3) = x01 * kmeans::SPATIAL_SCALE;
-                samples.at<float>(idx, 4) = y01 * kmeans::SPATIAL_SCALE;
+                for (int d = 0; d < 5; ++d) {
+                    samples.at<float>(idx, d) = feature[d];
+                }
+                idx++;
             }
         }
         return samples;
     }
 
-}
-}
+} // namespace kmeans::clustering

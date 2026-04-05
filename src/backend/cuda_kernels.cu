@@ -5,29 +5,41 @@
 #include "common/constants.hpp"
 #include <vector>
 #include <cstring>
+#include <stdexcept>
+#include <string>
 
-namespace kmeans {
+#define CUDA_CHECK(call) \
+    do { \
+        cudaError_t err = call; \
+        if (err != cudaSuccess) { \
+            throw std::runtime_error(std::string("CUDA Error: ") + cudaGetErrorString(err) + \
+                                     " at " + __FILE__ + ":" + std::to_string(__LINE__)); \
+        } \
+    } while (0)
+
+namespace kmeans::backend {
+
     CudaAssignmentContext::CudaAssignmentContext(int width, int height, int k) 
         : m_width(width), m_height(height), m_k(k) 
     {
         m_imgSize = width * height * 3 * sizeof(unsigned char);
         m_centersSize = k * 5 * sizeof(float);
 
-        // Persistent device memory allocation
-        cudaMalloc(&d_input, m_imgSize);
-        cudaMalloc(&d_output, m_imgSize);
-        cudaMalloc(&d_centers, m_centersSize);
+        // Persistent device memory allocation safely encapsulated
+        CUDA_CHECK(cudaMalloc(&d_input, m_imgSize));
+        CUDA_CHECK(cudaMalloc(&d_output, m_imgSize));
+        CUDA_CHECK(cudaMalloc(&d_centers, m_centersSize));
 
         // Persistent pinned host memory allocation for zero-copy staging
-        cudaMallocHost(&h_input_pinned, m_imgSize);
-        cudaMallocHost(&h_output_pinned, m_imgSize);
-        cudaMallocHost(&h_centers_pinned, m_centersSize);
+        CUDA_CHECK(cudaMallocHost(&h_input_pinned, m_imgSize));
+        CUDA_CHECK(cudaMallocHost(&h_output_pinned, m_imgSize));
+        CUDA_CHECK(cudaMallocHost(&h_centers_pinned, m_centersSize));
 
         // Initialize the stream for async operations
-        cudaStreamCreate(&m_stream);
+        CUDA_CHECK(cudaStreamCreate(&m_stream));
     }
 
-    CudaAssignmentContext::~CudaAssignmentContext() {
+    CudaAssignmentContext::~CudaAssignmentContext() noexcept {
         if (d_input) cudaFree(d_input);
         if (d_output) cudaFree(d_output);
         if (d_centers) cudaFree(d_centers);
@@ -95,7 +107,7 @@ namespace kmeans {
     {
         // 1. Quick CPU copy to pinned memory to bypass driver staging overhead
         std::memcpy(h_input_pinned, frame.data, m_imgSize);
-        cudaMemcpyAsync(d_input, h_input_pinned, m_imgSize, cudaMemcpyHostToDevice, m_stream);
+        CUDA_CHECK(cudaMemcpyAsync(d_input, h_input_pinned, m_imgSize, cudaMemcpyHostToDevice, m_stream));
         
         // Flatten centers directly into pinned host buffer
         int k_idx = 0;
@@ -105,23 +117,25 @@ namespace kmeans {
             }
         }
         
-        cudaMemcpyAsync(d_centers, h_centers_pinned, m_centersSize, cudaMemcpyHostToDevice, m_stream);
+        CUDA_CHECK(cudaMemcpyAsync(d_centers, h_centers_pinned, m_centersSize, cudaMemcpyHostToDevice, m_stream));
 
         // 2. Launch Kernel on Stream
         int threadsPerBlock = 256;
         int blocksPerGrid = (m_width * m_height + threadsPerBlock - 1) / threadsPerBlock;
         
         assignPixelsKernel<<<blocksPerGrid, threadsPerBlock, 0, m_stream>>>(
-            d_input, d_output, m_width, m_height, d_centers, m_k, COLOR_SCALE, SPATIAL_SCALE
+            d_input, d_output, m_width, m_height, d_centers, m_k, constants::COLOR_SCALE, constants::SPATIAL_SCALE
         );
+        CUDA_CHECK(cudaPeekAtLastError());
 
         // 3. Async Download to pinned memory
-        cudaMemcpyAsync(h_output_pinned, d_output, m_imgSize, cudaMemcpyDeviceToHost, m_stream);
+        CUDA_CHECK(cudaMemcpyAsync(h_output_pinned, d_output, m_imgSize, cudaMemcpyDeviceToHost, m_stream));
 
         // 4. Synchronize the stream to wait for transfers to finish
-        cudaStreamSynchronize(m_stream);
+        CUDA_CHECK(cudaStreamSynchronize(m_stream));
         
         // 5. Unpack result
         std::memcpy(output.data, h_output_pinned, m_imgSize);
     }
-}
+
+} // namespace kmeans::backend

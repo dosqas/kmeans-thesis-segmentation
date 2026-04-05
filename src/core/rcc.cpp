@@ -2,74 +2,53 @@
 #include "core/coreset.hpp"
 #include <unordered_set>
 
-namespace kmeans {
+namespace kmeans::core {
 
-    // Delete a subtree of our RCC. Used in cleaning up when deleting and pruning the RCC
-    static void deleteSubtree(RCCNode* node)
-    {
-        if (!node) return;              // Base case - RCCNode is null, meaning we reached the end of the tree
-        deleteSubtree(node->left);      // Recursively call the delete function on the left
-        deleteSubtree(node->right);     // and right subtrees
-        delete node;                    // Once we return from the recursion, we delete the node
+    RCC::RCC(int maxLevels) : max_levels(maxLevels) {
+        levels.resize(std::max(1, max_levels));
     }
 
-    // Insert a leaf in the RCC tree, merging as necessary to maintain structure
-    void RCC::insertLeaf(const Coreset& leafCoreset, int sample_size)
-    {
-        RCCNode* carry = new RCCNode(leafCoreset); // New leaf node to insert
+    void RCC::insertLeaf(const Coreset& leafCoreset) {
+        auto carry = std::make_unique<RCCNode>(leafCoreset);
 
         if (levels.empty()) {
-            levels.assign(std::max(1, this->max_levels), nullptr);
+            levels.resize(std::max(1, this->max_levels));
         }
 
-        for (int lvl = 0; lvl < (int)levels.size(); ++lvl) {
-            // If level is empty, place carry here and stop
+        for (int lvl = 0; lvl < static_cast<int>(levels.size()); ++lvl) {
             if (!levels[lvl]) {
-                levels[lvl] = carry;
-                carry = nullptr;
+                levels[lvl] = std::move(carry);
                 break;
-            }
-            else {
-                carry = mergeNodes(levels[lvl], carry); // Merge carry with existing node at this level
-                levels[lvl] = nullptr;
+            } else {
+                carry = mergeNodes(std::move(levels[lvl]), std::move(carry));
             }
         }
 
-        // If still have a carry beyond max_levels, drop oldest by merging into last level
         if (carry) {
-            // bounded cap: merge into top level and replace
             if (levels.back()) {
-                RCCNode* old_top = levels.back();
-                Coreset merged = mergeCoresets(old_top->coreset, carry->coreset); // Merge with existing top level
-                deleteSubtree(old_top); // Delete the old top level subtree
-                deleteSubtree(carry);   // Delete the carry subtree
-                carry = new RCCNode(merged); // Create a flattened replacement
+                Coreset merged = mergeCoresets(levels.back()->coreset, carry->coreset); 
+                carry = std::make_unique<RCCNode>(merged); 
             }
-            levels.back() = carry;
+            levels.back() = std::move(carry);
         }
     }
 
-    // Merge two RCC nodes A and B into one by merging their coresets and creating a new parent node
-    // having A and B as children
-    RCCNode* RCC::mergeNodes(RCCNode* nodeA, RCCNode* nodeB)
-    {
-        if (!nodeA) return nodeB;
-        if (!nodeB) return nodeA;
+    std::unique_ptr<RCCNode> RCC::mergeNodes(std::unique_ptr<RCCNode> nodeA, std::unique_ptr<RCCNode> nodeB) {
+        if (!nodeA) return std::move(nodeB);
+        if (!nodeB) return std::move(nodeA);
 
-        Coreset merged = mergeCoresets(nodeA->coreset, nodeB->coreset); // Merge the coresets of A and B
-        RCCNode* parent = new RCCNode(merged); // Create a new parent node with the merged coreset
-        parent->left = nodeA;
-        parent->right = nodeB;
+        Coreset merged = mergeCoresets(nodeA->coreset, nodeB->coreset); 
+        auto parent = std::make_unique<RCCNode>(merged); 
+        parent->left = std::move(nodeA);
+        parent->right = std::move(nodeB);
 
         return parent;
     }
 
-    // Get the coreset at the root of the RCC tree
-    Coreset RCC::getRootCoreset() const
-    {
+    Coreset RCC::getRootCoreset() const {
         Coreset final_coreset;
         bool empty = true;
-        for (auto node : levels) {
+        for (const auto& node : levels) {
             if (node) {
                 if (empty) {
                     final_coreset = node->coreset;
@@ -82,18 +61,9 @@ namespace kmeans {
         return final_coreset;
     }
 
-    void RCC::clear()
-    {
-        for (RCCNode* node : levels) {
-            if (node) {
-                deleteSubtree(node);
-            }
-        }
-        levels.assign(std::max(1, max_levels), nullptr);
+    void RCC::clear() {
+        levels.clear();
+        levels.resize(std::max(1, max_levels));
     }
 
-    RCC::~RCC()
-    {
-        clear();
-    }
-}
+} // namespace kmeans::core
