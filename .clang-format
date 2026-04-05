@@ -1,0 +1,52 @@
+---
+# Based on the highly-regarded LLVM standard, but customized for your thesis project
+BasedOnStyle: LLVM
+
+# --- Indentation & Spacing ---
+IndentWidth: 4
+TabWidth: 4
+UseTab: Never
+ColumnLimit: 120
+
+# --- Structural Formatting ---
+# Do not add extra indentation inside namespaces (keeps the code flat and readable)
+NamespaceIndentation: None
+
+# Keep opening braces `{` on the same line as the class/function/if block
+BreakBeforeBraces: Attach
+
+# Pointers look like `int* ptr` instead of `int *ptr`
+PointerAlignment: Left
+
+# Automatically appends `// namespace kmeans` to closing braces
+FixNamespaceComments: true
+
+# Short one-liners can stay on one line (e.g. simple getters)
+AllowShortFunctionsOnASingleLine: Inline
+
+# --- Include Sorting & Grouping ---
+# Automatically sort includes and insert blank lines between the categories below
+SortIncludes: true
+IncludeBlocks: Regroup
+
+IncludeCategories:
+  # 1. Main header file (implicitly handled by Clang-Format automatically)
+  
+  # 2. C / C++ Standard Library (e.g. <vector>, <string>) 
+  # Regex matches anything in angle brackets without slashes (standard library)
+  - Regex:           '^<[^/]+>$'
+    Priority:        2
+    
+  # 3. Third-party Libraries (e.g. <opencv2/core.hpp>, <zmq.hpp>, <GLFW/glfw3.h>)
+  - Regex:           '^<.*>'
+    Priority:        3
+    
+  # 4. Project-Specific Headers (e.g. "common/config.hpp")
+  - Regex:           '^".*"'
+    Priority:        4
+
+# --- Misc Cleanups ---
+# Ensures `#include` directives don't get extra spaces
+SpaceBeforeAssignmentOperators: true
+SpaceBeforeParens: ControlStatements
+...

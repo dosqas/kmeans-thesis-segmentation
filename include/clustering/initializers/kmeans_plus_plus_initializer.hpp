@@ -4,12 +4,12 @@
 
 namespace kmeans::clustering {
 
-    class KMeansPlusPlusInitializer final : public Initializer {
-    public:
-        KMeansPlusPlusInitializer() = default;
-        ~KMeansPlusPlusInitializer() = default;
+class KMeansPlusPlusInitializer final : public Initializer {
+  public:
+    KMeansPlusPlusInitializer() = default;
+    ~KMeansPlusPlusInitializer() = default;
 
-        [[nodiscard]] std::vector<cv::Vec<float, 5>> initialize(const cv::Mat& samples, int k) const override final;
-    };
+    [[nodiscard]] std::vector<cv::Vec<float, 5>> initialize(const cv::Mat& samples, int k) const override final;
+};
 
 } // namespace kmeans::clustering

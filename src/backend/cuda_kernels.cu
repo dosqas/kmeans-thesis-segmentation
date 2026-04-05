@@ -1,141 +1,132 @@
+#include <cstring>
 #include <cuda_runtime.h>
 #include <device_launch_parameters.h>
-#include "backend/cuda_assignment_context.hpp"
-#include <opencv2/core.hpp>
-#include "common/constants.hpp"
-#include <vector>
-#include <cstring>
 #include <stdexcept>
 #include <string>
+#include <vector>
 
-#define CUDA_CHECK(call) \
-    do { \
-        cudaError_t err = call; \
-        if (err != cudaSuccess) { \
-            throw std::runtime_error(std::string("CUDA Error: ") + cudaGetErrorString(err) + \
-                                     " at " + __FILE__ + ":" + std::to_string(__LINE__)); \
-        } \
+#include <opencv2/core.hpp>
+
+#include "backend/cuda_assignment_context.hpp"
+#include "common/constants.hpp"
+
+#define CUDA_CHECK(call)                                                                                               \
+    do {                                                                                                               \
+        cudaError_t err = call;                                                                                        \
+        if (err != cudaSuccess) {                                                                                      \
+            throw std::runtime_error(std::string("CUDA Error: ") + cudaGetErrorString(err) + " at " + __FILE__ + ":" + \
+                                     std::to_string(__LINE__));                                                        \
+        }                                                                                                              \
     } while (0)
 
 namespace kmeans::backend {
 
-    CudaAssignmentContext::CudaAssignmentContext(int width, int height, int k) 
-        : m_width(width), m_height(height), m_k(k) 
-    {
-        m_imgSize = width * height * 3 * sizeof(unsigned char);
-        m_centersSize = k * 5 * sizeof(float);
+CudaAssignmentContext::CudaAssignmentContext(int width, int height, int k) : m_width(width), m_height(height), m_k(k) {
+    m_imgSize = width * height * 3 * sizeof(unsigned char);
+    m_centersSize = k * 5 * sizeof(float);
 
-        // Persistent device memory allocation safely encapsulated
-        CUDA_CHECK(cudaMalloc(&d_input, m_imgSize));
-        CUDA_CHECK(cudaMalloc(&d_output, m_imgSize));
-        CUDA_CHECK(cudaMalloc(&d_centers, m_centersSize));
+    // Persistent device memory allocation safely encapsulated
+    CUDA_CHECK(cudaMalloc(&d_input, m_imgSize));
+    CUDA_CHECK(cudaMalloc(&d_output, m_imgSize));
+    CUDA_CHECK(cudaMalloc(&d_centers, m_centersSize));
 
-        // Persistent pinned host memory allocation for zero-copy staging
-        CUDA_CHECK(cudaMallocHost(&h_input_pinned, m_imgSize));
-        CUDA_CHECK(cudaMallocHost(&h_output_pinned, m_imgSize));
-        CUDA_CHECK(cudaMallocHost(&h_centers_pinned, m_centersSize));
+    // Persistent pinned host memory allocation for zero-copy staging
+    CUDA_CHECK(cudaMallocHost(&h_input_pinned, m_imgSize));
+    CUDA_CHECK(cudaMallocHost(&h_output_pinned, m_imgSize));
+    CUDA_CHECK(cudaMallocHost(&h_centers_pinned, m_centersSize));
 
-        // Initialize the stream for async operations
-        CUDA_CHECK(cudaStreamCreate(&m_stream));
-    }
+    // Initialize the stream for async operations
+    CUDA_CHECK(cudaStreamCreate(&m_stream));
+}
 
-    CudaAssignmentContext::~CudaAssignmentContext() noexcept {
-        if (d_input) cudaFree(d_input);
-        if (d_output) cudaFree(d_output);
-        if (d_centers) cudaFree(d_centers);
-        
-        if (h_input_pinned) cudaFreeHost(h_input_pinned);
-        if (h_output_pinned) cudaFreeHost(h_output_pinned);
-        if (h_centers_pinned) cudaFreeHost(h_centers_pinned);
-        
-        if (m_stream) cudaStreamDestroy(m_stream);
-    }
+CudaAssignmentContext::~CudaAssignmentContext() noexcept {
+    if (d_input)
+        cudaFree(d_input);
+    if (d_output)
+        cudaFree(d_output);
+    if (d_centers)
+        cudaFree(d_centers);
 
-    __global__ static void assignPixelsKernel(
-        const unsigned char* input,
-        unsigned char* output,
-        int width,
-        int height,
-        const float* centers,
-        int k,
-        float color_scale,
-        float spatial_scale)
-    {
-        int idx = blockIdx.x * blockDim.x + threadIdx.x;
-        int total = width * height;
-        if (idx >= total) return;
+    if (h_input_pinned)
+        cudaFreeHost(h_input_pinned);
+    if (h_output_pinned)
+        cudaFreeHost(h_output_pinned);
+    if (h_centers_pinned)
+        cudaFreeHost(h_centers_pinned);
 
-        int r = idx / width;
-        int c = idx % width;
-        int offset = idx * 3;
+    if (m_stream)
+        cudaStreamDestroy(m_stream);
+}
 
-        float x01 = float(c) / float(width);
-        float y01 = float(r) / float(height);
+__global__ static void assignPixelsKernel(const unsigned char* input, unsigned char* output, int width, int height,
+                                          const float* centers, int k, float color_scale, float spatial_scale) {
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    int total = width * height;
+    if (idx >= total)
+        return;
 
-        float f[5] = {
-            (float)input[offset + 0] * color_scale,
-            (float)input[offset + 1] * color_scale,
-            (float)input[offset + 2] * color_scale,
-            x01 * spatial_scale,
-            y01 * spatial_scale
-        };
+    int r = idx / width;
+    int c = idx % width;
+    int offset = idx * 3;
 
-        int bestIdx = 0;
-        float bestDist2 = 1e20f;
+    float x01 = float(c) / float(width);
+    float y01 = float(r) / float(height);
 
-        for (int ci = 0; ci < k; ++ci) {
-            float d2 = 0.0f;
-            for (int d = 0; d < 5; ++d) {
-                float diff = f[d] - centers[ci * 5 + d];
-                d2 += diff * diff;
-            }
-            if (d2 < bestDist2) {
-                bestDist2 = d2;
-                bestIdx = ci;
-            }
+    float f[5] = {(float)input[offset + 0] * color_scale, (float)input[offset + 1] * color_scale,
+                  (float)input[offset + 2] * color_scale, x01 * spatial_scale, y01 * spatial_scale};
+
+    int bestIdx = 0;
+    float bestDist2 = 1e20f;
+
+    for (int ci = 0; ci < k; ++ci) {
+        float d2 = 0.0f;
+        for (int d = 0; d < 5; ++d) {
+            float diff = f[d] - centers[ci * 5 + d];
+            d2 += diff * diff;
         }
-
-        float inv_scale = 1.0f / fmaxf(1e-6f, color_scale);
-        output[offset + 0] = (unsigned char)fminf(255.0f, centers[bestIdx * 5 + 0] * inv_scale);
-        output[offset + 1] = (unsigned char)fminf(255.0f, centers[bestIdx * 5 + 1] * inv_scale);
-        output[offset + 2] = (unsigned char)fminf(255.0f, centers[bestIdx * 5 + 2] * inv_scale);
-    }
-
-    void CudaAssignmentContext::run(const cv::Mat& frame, 
-                                    const std::vector<cv::Vec<float, 5>>& centers, 
-                                    cv::Mat& output) 
-    {
-        // 1. Quick CPU copy to pinned memory to bypass driver staging overhead
-        std::memcpy(h_input_pinned, frame.data, m_imgSize);
-        CUDA_CHECK(cudaMemcpyAsync(d_input, h_input_pinned, m_imgSize, cudaMemcpyHostToDevice, m_stream));
-        
-        // Flatten centers directly into pinned host buffer
-        int k_idx = 0;
-        for(const auto& c : centers) {
-            for(int i = 0; i < 5; ++i) {
-                h_centers_pinned[k_idx++] = c[i];
-            }
+        if (d2 < bestDist2) {
+            bestDist2 = d2;
+            bestIdx = ci;
         }
-        
-        CUDA_CHECK(cudaMemcpyAsync(d_centers, h_centers_pinned, m_centersSize, cudaMemcpyHostToDevice, m_stream));
-
-        // 2. Launch Kernel on Stream
-        int threadsPerBlock = 256;
-        int blocksPerGrid = (m_width * m_height + threadsPerBlock - 1) / threadsPerBlock;
-        
-        assignPixelsKernel<<<blocksPerGrid, threadsPerBlock, 0, m_stream>>>(
-            d_input, d_output, m_width, m_height, d_centers, m_k, constants::COLOR_SCALE, constants::SPATIAL_SCALE
-        );
-        CUDA_CHECK(cudaPeekAtLastError());
-
-        // 3. Async Download to pinned memory
-        CUDA_CHECK(cudaMemcpyAsync(h_output_pinned, d_output, m_imgSize, cudaMemcpyDeviceToHost, m_stream));
-
-        // 4. Synchronize the stream to wait for transfers to finish
-        CUDA_CHECK(cudaStreamSynchronize(m_stream));
-        
-        // 5. Unpack result
-        std::memcpy(output.data, h_output_pinned, m_imgSize);
     }
+
+    float inv_scale = 1.0f / fmaxf(1e-6f, color_scale);
+    output[offset + 0] = (unsigned char)fminf(255.0f, centers[bestIdx * 5 + 0] * inv_scale);
+    output[offset + 1] = (unsigned char)fminf(255.0f, centers[bestIdx * 5 + 1] * inv_scale);
+    output[offset + 2] = (unsigned char)fminf(255.0f, centers[bestIdx * 5 + 2] * inv_scale);
+}
+
+void CudaAssignmentContext::run(const cv::Mat& frame, const std::vector<cv::Vec<float, 5>>& centers, cv::Mat& output) {
+    // 1. Quick CPU copy to pinned memory to bypass driver staging overhead
+    std::memcpy(h_input_pinned, frame.data, m_imgSize);
+    CUDA_CHECK(cudaMemcpyAsync(d_input, h_input_pinned, m_imgSize, cudaMemcpyHostToDevice, m_stream));
+
+    // Flatten centers directly into pinned host buffer
+    int k_idx = 0;
+    for (const auto& c : centers) {
+        for (int i = 0; i < 5; ++i) {
+            h_centers_pinned[k_idx++] = c[i];
+        }
+    }
+
+    CUDA_CHECK(cudaMemcpyAsync(d_centers, h_centers_pinned, m_centersSize, cudaMemcpyHostToDevice, m_stream));
+
+    // 2. Launch Kernel on Stream
+    int threadsPerBlock = 256;
+    int blocksPerGrid = (m_width * m_height + threadsPerBlock - 1) / threadsPerBlock;
+
+    assignPixelsKernel<<<blocksPerGrid, threadsPerBlock, 0, m_stream>>>(
+        d_input, d_output, m_width, m_height, d_centers, m_k, constants::COLOR_SCALE, constants::SPATIAL_SCALE);
+    CUDA_CHECK(cudaPeekAtLastError());
+
+    // 3. Async Download to pinned memory
+    CUDA_CHECK(cudaMemcpyAsync(h_output_pinned, d_output, m_imgSize, cudaMemcpyDeviceToHost, m_stream));
+
+    // 4. Synchronize the stream to wait for transfers to finish
+    CUDA_CHECK(cudaStreamSynchronize(m_stream));
+
+    // 5. Unpack result
+    std::memcpy(output.data, h_output_pinned, m_imgSize);
+}
 
 } // namespace kmeans::backend
