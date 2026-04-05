@@ -45,7 +45,7 @@ set_target_properties(kmeans_core PROPERTIES
     CXX_STANDARD_REQUIRED ON
     CXX_EXTENSIONS OFF
     CUDA_SEPARABLE_COMPILATION ON       # Enable separable compilation for CUDA (different from .cpp files)
-    CUDA_STANDARD 17                    # Use C++14 standard for CUDA files
+    CUDA_STANDARD 17                    # Use C++17 standard for CUDA files
     CUDA_STANDARD_REQUIRED ON           # Enforce the use of the specified C++ standard
     CUDA_ARCHITECTURES "native"         # Specify target architecture (native for the current machine)
 )

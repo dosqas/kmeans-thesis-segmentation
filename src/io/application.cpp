@@ -107,7 +107,7 @@ void Application::renderUI() {
 
     // 1. Control Panel
     ImGui::SetNextWindowPos(ImVec2(0, 0), ImGuiCond_Always);
-    ImGui::SetNextWindowSize(ImVec2(350, ImGui::GetIO().DisplaySize.y), ImGuiCond_Always);
+    ImGui::SetNextWindowSize(ImVec2(constants::UI_PANEL_WIDTH, ImGui::GetIO().DisplaySize.y), ImGuiCond_Always);
     ImGui::Begin("Clustering Controls", nullptr,
                  ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoCollapse);
 
@@ -169,18 +169,13 @@ void Application::renderUI() {
     static uint32_t lastProcessedFrames = 0;
     static std::vector<float> algoFpsHistory;
 
-    float workerFps = 0.0f;
-    float algoTimeMs = 0.0f;
-    uint32_t currentFrames = 0;
-    {
+    const auto [workerFps, algoTimeMs, currentFrames] = [this]() {
         std::scoped_lock<std::mutex> lock(m_dataMutex);
-        workerFps = m_currentWorkerFps;
-        algoTimeMs = m_currentAlgoTimeMs;
-        currentFrames = m_processedFrames;
-    }
+        return std::make_tuple(m_currentWorkerFps, m_currentAlgoTimeMs, m_processedFrames);
+    }();
 
     if (currentFrames != lastProcessedFrames) {
-        if (algoFpsHistory.size() >= 90) {
+        if (algoFpsHistory.size() >= constants::FPS_HISTORY_WINDOW) {
             algoFpsHistory.erase(algoFpsHistory.begin());
         }
         algoFpsHistory.push_back(workerFps);
@@ -211,8 +206,8 @@ void Application::renderUI() {
     ImGui::End();
 
     // 2. Video Feed Window
-    ImGui::SetNextWindowPos(ImVec2(350, 0), ImGuiCond_Always);
-    ImGui::SetNextWindowSize(ImVec2(ImGui::GetIO().DisplaySize.x - 350, ImGui::GetIO().DisplaySize.y),
+    ImGui::SetNextWindowPos(ImVec2(constants::UI_PANEL_WIDTH, 0), ImGuiCond_Always);
+    ImGui::SetNextWindowSize(ImVec2(ImGui::GetIO().DisplaySize.x - constants::UI_PANEL_WIDTH, ImGui::GetIO().DisplaySize.y),
                              ImGuiCond_Always);
     ImGui::Begin("Video Segmentation Feed", nullptr,
                  ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoCollapse);
@@ -289,7 +284,7 @@ void Application::run() {
             }
 
             cv::Mat smallFrame;
-            cv::resize(frame, smallFrame, cv::Size(200, 150));
+            cv::resize(frame, smallFrame, cv::Size(constants::PROCESS_WIDTH, constants::PROCESS_HEIGHT));
 
             auto startAlgo = std::chrono::high_resolution_clock::now();
             cv::Mat segmented = m_manager.segmentFrame(smallFrame); // Returned by value, clone() not needed
